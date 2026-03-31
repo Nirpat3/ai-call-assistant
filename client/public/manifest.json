@@ -1,0 +1,102 @@
+{
+  "name": "AI Call Assistant",
+  "short_name": "AI Calls",
+  "description": "Advanced AI-powered communication platform with intelligent call routing and automated transcription",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait",
+  "categories": ["business", "productivity", "communication"],
+  "lang": "en",
+  "dir": "ltr",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/generated-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/generated-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/generated-icon.png",
+      "sizes": "540x720",
+      "type": "image/png",
+      "form_factor": "narrow"
+    },
+    {
+      "src": "/generated-icon.png",
+      "sizes": "720x540",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ],
+  "features": [
+    "Cross Platform",
+    "Fast",
+    "Simple"
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false,
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "View call analytics and system overview",
+      "url": "/",
+      "icons": [
+        {
+          "src": "/generated-icon.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Call Log",
+      "short_name": "Calls",
+      "description": "View recent calls and call history",
+      "url": "/call-log",
+      "icons": [
+        {
+          "src": "/generated-icon.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Contacts",
+      "short_name": "Contacts",
+      "description": "Manage your contact directory",
+      "url": "/contacts",
+      "icons": [
+        {
+          "src": "/generated-icon.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Voicemail",
+      "short_name": "Voicemail",
+      "description": "Listen to voicemail messages",
+      "url": "/voicemail",
+      "icons": [
+        {
+          "src": "/generated-icon.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ]
+}
