@@ -1,0 +1,1068 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global scrolling fixes */
+html, body {
+  height: 100%;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+body {
+  overflow-y: auto;
+}
+
+/* Prevent layout overflow issues */
+* {
+  box-sizing: border-box;
+}
+
+/* Fix all layout containers to allow proper scrolling */
+#root {
+  min-height: 100vh;
+}
+
+/* Ensure main content areas can scroll properly */
+main {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Fix dashboard and page layouts - override all min-h-screen constraints */
+.min-h-screen {
+  min-height: auto !important;
+}
+
+/* Ensure content containers don't constrain height */
+.flex.min-h-screen {
+  min-height: auto !important;
+  height: auto !important;
+}
+
+/* Fix any remaining height constraints that prevent scrolling */
+.h-screen {
+  height: auto !important;
+  min-height: auto !important;
+}
+
+/* Ensure all page layouts allow natural scrolling */
+
+/* Custom scrollbar styles for sidebar */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 3px;
+  border: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+}
+
+/* Ensure sidebar scrolling works properly */
+.sidebar-content {
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.sidebar-nav {
+  max-height: calc(100vh - 300px);
+  overflow-y: auto;
+}
+[class*="min-h-screen"] {
+  min-height: auto !important;
+}
+
+[class*="h-screen"] {
+  height: auto !important;
+}
+
+/* Allow all page content to scroll naturally */
+.page-container {
+  height: auto;
+  min-height: auto;
+  overflow-y: visible;
+}
+
+/* Responsive Layout Improvements */
+@media (max-width: 768px) {
+  /* Mobile-first approach */
+  .sidebar-content {
+    height: auto;
+    max-height: 100vh;
+  }
+  
+  .sidebar-nav {
+    max-height: calc(100vh - 200px);
+  }
+  
+  /* Ensure mobile content doesn't overflow */
+  main {
+    padding-left: 0 !important;
+  }
+  
+  /* Better mobile spacing */
+  .mobile-block-layout {
+    padding: 1rem;
+  }
+  
+  /* Responsive cards and components */
+  .grid {
+    grid-template-columns: 1fr !important;
+    gap: 1rem;
+  }
+  
+  .grid-cols-2 {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .grid-cols-3 {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .grid-cols-4 {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Extra small screens */
+  .text-2xl {
+    font-size: 1.25rem !important;
+  }
+  
+  .text-lg {
+    font-size: 1rem !important;
+  }
+  
+  /* Adjust padding for very small screens */
+  .px-4 {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  /* Tablet layout */
+  .grid-cols-4 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  
+  .sidebar-content {
+    padding: 1rem;
+  }
+  
+  /* Better tablet spacing */
+  main {
+    padding-left: 18rem !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  /* Desktop and larger screens */
+  .grid-responsive {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+}
+
+/* Landscape phone and small tablet adjustments */
+@media (orientation: landscape) and (max-height: 600px) {
+  .sidebar-content {
+    padding: 0.5rem;
+  }
+  
+  .sidebar-nav {
+    max-height: calc(100vh - 120px);
+  }
+  
+  /* Compact navigation for landscape */
+  .nav-item, .nav-item-active {
+    padding: 0.5rem !important;
+  }
+}
+
+/* Improve touch targets for mobile */
+@media (hover: none) and (pointer: coarse) {
+  .nav-item, .nav-item-active, button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Better mobile button spacing */
+  .space-x-2 > * + * {
+    margin-left: 0.75rem;
+  }
+}
+
+/* Fix specific layout issues */
+.dashboard-layout,
+.page-layout {
+  height: auto !important;
+  min-height: auto !important;
+}
+
+/* Ensure sidebar doesn't interfere with scrolling */
+.sidebar-container {
+  position: fixed;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+/* Main content should have left margin for sidebar */
+.main-content {
+  margin-left: 0;
+}
+
+@media (min-width: 1024px) {
+  .main-content {
+    margin-left: 256px; /* Sidebar width */
+  }
+}
+
+@layer base {
+  :root {
+    /* Apple Liquid Glass Design System */
+    --background: 220 15% 98%; /* #FAFBFC - Very light blue-gray */
+    --foreground: 220 40% 8%; /* #0D1117 - Deep dark */
+    --card: 0 0% 100% / 0.85; /* Semi-transparent white for glass effect */
+    --card-foreground: 220 40% 8%; /* #0D1117 */
+    --popover: 0 0% 100% / 0.95; /* Slightly more opaque for readability */
+    --popover-foreground: 220 40% 8%; /* #0D1117 */
+    --primary: 221 83% 53%; /* #007AFF - Apple blue */
+    --primary-foreground: 0 0% 100%; /* #FFFFFF */
+    --secondary: 220 15% 95% / 0.7; /* Translucent secondary */
+    --secondary-foreground: 220 40% 8%; /* #0D1117 */
+    --muted: 220 15% 95% / 0.6; /* More translucent muted */
+    --muted-foreground: 220 15% 50%; /* #78828A */
+    --accent: 221 39% 11%; /* #1A1D29 - Dark accent */
+    --accent-foreground: 0 0% 100%; /* #FFFFFF */
+    --destructive: 0 76% 60%; /* #FF3B30 - Apple red */
+    --destructive-foreground: 0 0% 100%; /* #FFFFFF */
+    --border: 220 15% 88% / 0.3; /* Semi-transparent borders */
+    --input: 220 15% 95% / 0.8; /* Translucent inputs */
+    --ring: 221 83% 53%; /* #007AFF */
+    --radius: 1rem; /* Increased radius for modern look */
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    
+    /* Liquid Glass specific variables */
+    --glass-bg: rgba(255, 255, 255, 0.1);
+    --glass-border: rgba(255, 255, 255, 0.2);
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    --glass-shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.15);
+    --blur-amount: 20px;
+  }
+
+  .dark {
+    --background: 222 84% 5%; /* #0F172A */
+    --foreground: 210 40% 98%; /* #F8FAFC */
+    --card: 222 84% 5%; /* #0F172A */
+    --card-foreground: 210 40% 98%; /* #F8FAFC */
+    --popover: 222 84% 5%; /* #0F172A */
+    --popover-foreground: 210 40% 98%; /* #F8FAFC */
+    --primary: 221 83% 53%; /* #3B82F6 - Professional Blue */
+    --primary-foreground: 0 0% 100%; /* #FFFFFF */
+    --secondary: 217 33% 17%; /* #1E293B */
+    --secondary-foreground: 210 40% 98%; /* #F8FAFC */
+    --muted: 217 33% 17%; /* #1E293B */
+    --muted-foreground: 215 20% 65%; /* #94A3B8 */
+    --accent: 217 33% 17%; /* #1E293B */
+    --accent-foreground: 210 40% 98%; /* #F8FAFC */
+    --destructive: 0 84% 60%; /* #EF4444 */
+    --destructive-foreground: 0 0% 100%; /* #FFFFFF */
+    --border: 217 33% 17%; /* #1E293B */
+    --input: 217 33% 17%; /* #1E293B */
+    --ring: 221 83% 53%; /* #3B82F6 */
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+}
+
+/* Apple Liquid Glass Design System */
+@layer components {
+  /* Liquid Glass Card Styles */
+  .card-standard {
+    @apply bg-card/80 backdrop-blur-xl border border-border/30 rounded-2xl shadow-lg;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    backdrop-filter: blur(var(--blur-amount));
+    -webkit-backdrop-filter: blur(var(--blur-amount));
+  }
+
+  .card-elevated {
+    @apply bg-card/85 backdrop-blur-xl border border-border/40 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    backdrop-filter: blur(var(--blur-amount));
+    -webkit-backdrop-filter: blur(var(--blur-amount));
+  }
+
+  .card-elevated:hover {
+    box-shadow: var(--glass-shadow-hover);
+    transform: translateY(-2px);
+  }
+
+  /* Liquid Glass Button System */
+  .btn-primary {
+    @apply bg-primary/90 backdrop-blur-md text-primary-foreground hover:bg-primary px-6 py-3 rounded-2xl font-medium transition-all duration-300 shadow-lg hover:shadow-xl;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 25px rgba(0, 122, 255, 0.3);
+  }
+
+  .btn-secondary {
+    @apply bg-secondary/70 backdrop-blur-md text-secondary-foreground hover:bg-secondary/90 px-6 py-3 rounded-2xl font-medium transition-all duration-300 shadow-md hover:shadow-lg;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+  }
+
+  .btn-secondary:hover {
+    transform: translateY(-1px);
+  }
+
+  .btn-outline {
+    @apply border border-border/40 bg-background/50 backdrop-blur-md hover:bg-accent/70 hover:text-accent-foreground px-6 py-3 rounded-2xl font-medium transition-all duration-300 shadow-sm hover:shadow-md;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .btn-outline:hover {
+    transform: translateY(-1px);
+  }
+
+  /* Liquid Glass Form Inputs */
+  .input-standard {
+    @apply flex h-12 w-full rounded-2xl border border-input/40 bg-input/60 backdrop-blur-md px-4 py-3 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all duration-300;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
+
+  .input-standard:focus {
+    background: rgba(255, 255, 255, 0.8);
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1), inset 0 2px 4px rgba(0, 0, 0, 0.05);
+  }
+
+  /* Enhanced Typography with Glass Effects */
+  .text-heading-1 {
+    @apply text-3xl font-bold tracking-tight text-foreground;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .text-heading-2 {
+    @apply text-2xl font-semibold tracking-tight text-foreground;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+
+  .text-heading-3 {
+    @apply text-xl font-semibold text-foreground;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+
+  .text-body {
+    @apply text-sm text-foreground leading-relaxed;
+  }
+
+  .text-muted {
+    @apply text-sm text-muted-foreground;
+  }
+
+  /* Liquid Glass Status Indicators */
+  .status-success {
+    @apply inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-md border transition-all duration-300;
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    color: rgb(22, 163, 74);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 2px 8px rgba(34, 197, 94, 0.1);
+  }
+
+  .status-warning {
+    @apply inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-md border transition-all duration-300;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    color: rgb(217, 119, 6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1);
+  }
+
+  .status-error {
+    @apply inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-md border transition-all duration-300;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    color: rgb(220, 38, 38);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.1);
+  }
+
+  .status-info {
+    @apply inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium backdrop-blur-md border transition-all duration-300;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    color: rgb(37, 99, 235);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+  }
+
+  /* Liquid Glass Navigation */
+  .nav-item {
+    @apply flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-2xl transition-all duration-300 hover:backdrop-blur-md;
+    border: 1px solid transparent;
+  }
+
+  .nav-item:hover {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transform: translateY(-1px);
+  }
+
+  .nav-item-active {
+    @apply flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-2xl backdrop-blur-md;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    box-shadow: 0 6px 20px rgba(0, 122, 255, 0.15);
+    color: hsl(var(--primary));
+  }
+
+  /* Loading States */
+  .loading-spinner {
+    @apply animate-spin rounded-full h-4 w-4 border-b-2 border-primary;
+  }
+
+  .loading-skeleton {
+    @apply animate-pulse bg-muted rounded;
+  }
+
+  /* Liquid Glass Page Layout */
+  .page-header {
+    @apply mb-8 pb-6 border-b border-border/30 backdrop-blur-sm;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 1.5rem 1.5rem 0 0;
+    padding: 1.5rem;
+    margin: -1.5rem -1.5rem 2rem -1.5rem;
+  }
+
+  .page-title {
+    @apply text-heading-1 mb-2;
+    background: linear-gradient(135deg, hsl(var(--foreground)), hsl(var(--foreground) / 0.7));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .page-description {
+    @apply text-muted;
+  }
+
+  .section-spacing {
+    @apply space-y-8;
+  }
+
+  .grid-responsive {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8;
+  }
+
+  /* Enhanced Interactive Elements */
+  .interactive-hover {
+    @apply transition-all duration-300 hover:scale-[1.02] cursor-pointer;
+  }
+
+  .interactive-hover:hover {
+    box-shadow: var(--glass-shadow-hover);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+  }
+
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 transition-all duration-300;
+  }
+
+  /* Floating Elements */
+  .floating-panel {
+    @apply fixed backdrop-blur-2xl border border-border/20 rounded-3xl shadow-2xl transition-all duration-500;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    box-shadow: 
+      0 25px 50px rgba(0, 0, 0, 0.1),
+      0 0 0 1px rgba(255, 255, 255, 0.05),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  .floating-panel:hover {
+    transform: translateY(-4px);
+    box-shadow: 
+      0 35px 60px rgba(0, 0, 0, 0.15),
+      0 0 0 1px rgba(255, 255, 255, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  }
+
+  /* Glass Modal/Dialog Styles */
+  .glass-modal {
+    @apply backdrop-blur-3xl rounded-3xl border border-border/30;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(50px);
+    -webkit-backdrop-filter: blur(50px);
+    box-shadow: 
+      0 30px 60px rgba(0, 0, 0, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* Mobile App Compatibility Styles */
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+  }
+
+  html,
+  body {
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+    height: 100%;
+    width: 100%;
+    position: fixed;
+  }
+
+  #root {
+    height: 100vh;
+    width: 100vw;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  /* iOS Safe Area Support */
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-area-left {
+    padding-left: env(safe-area-inset-left);
+  }
+
+  .safe-area-right {
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Mobile-optimized touch targets */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Smooth scrolling for mobile */
+  .mobile-scroll {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
+  /* Prevent zoom on input focus (iOS) */
+  input[type="text"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="password"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  /* Mobile navigation improvements */
+  @media (max-width: 768px) {
+    .mobile-nav {
+      display: none !important;
+    }
+
+    .mobile-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 50;
+      background: white;
+      border-bottom: 1px solid #e5e7eb;
+      padding: env(safe-area-inset-top) 0 0 0;
+    }
+
+    .mobile-content {
+      padding-top: calc(60px + env(safe-area-inset-top));
+      padding-bottom: calc(80px + env(safe-area-inset-bottom));
+      height: 100vh;
+      overflow-y: auto;
+    }
+  }
+
+  /* Dark mode support for mobile apps */
+  @media (prefers-color-scheme: dark) {
+    .mobile-header {
+      background: #1f2937;
+      border-color: #374151;
+    }
+  }
+}
+
+/* Mobile block layout for iPad mini and below (768px and smaller) */
+@media (max-width: 768px) {
+  .mobile-block-layout {
+    display: block !important;
+  }
+  
+  .mobile-block-layout > * {
+    display: block !important;
+    width: 100% !important;
+    margin-bottom: 20px !important;
+  }
+  
+  /* Override grid layouts on mobile */
+  .mobile-block-layout.grid {
+    display: block !important;
+    grid-template-columns: none !important;
+  }
+  
+  /* Stack card content vertically */
+  .mobile-block-layout .flex {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  
+  /* Adjust spacing for mobile cards */
+  .mobile-block-layout .space-x-4 > * {
+    margin-left: 0 !important;
+    margin-bottom: 12px !important;
+  }
+  
+  /* Enhanced mobile card styling with better distinction */
+  .mobile-block-layout .p-4 {
+    padding: 16px !important;
+  }
+  
+  /* Mobile-friendly button layouts */
+  .mobile-block-layout .justify-between {
+    justify-content: flex-start !important;
+    gap: 12px !important;
+  }
+  
+  /* Stack action buttons vertically on mobile */
+  .mobile-block-layout .flex.space-x-2 {
+    flex-direction: column !important;
+    gap: 12px !important;
+  }
+  
+  .mobile-block-layout .flex.space-x-2 > * {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Clean mobile layout for all responsive grids */
+  .grid-responsive {
+    display: block !important;
+    grid-template-columns: none !important;
+    gap: 0 !important;
+  }
+
+  .grid-responsive > * {
+    margin-bottom: 24px !important;
+    border: 2px solid rgba(0, 0, 0, 0.15) !important;
+    border-radius: 16px !important;
+    padding: 20px !important;
+    background: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    position: static !important;
+    isolation: auto !important;
+    transition: all 0.2s ease !important;
+  }
+
+  .grid-responsive > *:hover {
+    border-color: rgba(59, 130, 246, 0.3) !important;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12) !important;
+  }
+
+  .grid-responsive > *::after,
+  .grid-responsive > *::before {
+    display: none !important;
+  }
+
+  .grid-responsive > *:last-child {
+    margin-bottom: 0 !important;
+  }
+
+  /* Style nested card sections for mobile */
+  .grid-responsive .card-elevated,
+  .grid-responsive [class*="card"] {
+    border: 2px solid rgba(0, 0, 0, 0.15) !important;
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+    margin-bottom: 24px !important;
+    transform: none !important;
+    position: static !important;
+    transition: all 0.2s ease !important;
+    border-radius: 16px !important;
+    padding: 20px !important;
+  }
+
+  .grid-responsive .card-elevated:hover,
+  .grid-responsive [class*="card"]:hover {
+    transform: none !important;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12) !important;
+    border-color: rgba(59, 130, 246, 0.3) !important;
+  }
+
+  .grid-responsive .card-elevated::before,
+  .grid-responsive [class*="card"]::before {
+    display: none !important;
+  }
+
+  /* Reset parent container styling to avoid double borders */
+  .grid-responsive .space-y-6 > *,
+  .grid-responsive .space-y-8 > * {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin-bottom: 0 !important;
+  }
+
+  /* Mobile navigation improvements */
+  .mobile-nav {
+    display: none !important;
+  }
+
+  .desktop-nav {
+    display: none !important;
+  }
+}
+
+/* Desktop view for iPad Air and above (769px and larger) */
+@media (min-width: 769px) {
+  .mobile-block-layout {
+    display: flex !important;
+  }
+
+  .mobile-nav {
+    display: none !important;
+  }
+
+  .desktop-nav {
+    display: block !important;
+  }
+}
+
+/* Fix scrolling issues across all pages */
+.overflow-hidden {
+  overflow: visible !important;
+}
+
+/* Ensure proper scrolling for dashboard-style layouts */
+.flex.min-h-screen {
+  min-height: 100vh;
+  height: auto;
+}
+
+/* Fix for fixed height containers */
+.h-screen {
+  height: auto !important;
+  min-height: 100vh;
+}
+
+/* Ensure content containers can expand and scroll */
+.space-y-6,
+.space-y-4,
+.space-y-3 {
+  min-height: 0;
+}
+
+/* Prevent viewport lock for scrollable areas */
+.overflow-auto {
+  overflow: visible;
+}
+
+:root {
+  --background: 250 50% 98%; /* #FAFAFA */
+  --foreground: 20 14.3% 4.1%;
+  --muted: 60 4.8% 95.9%;
+  --muted-foreground: 25 5.3% 44.7%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 20 14.3% 4.1%;
+  --card: 0 0% 100%; /* #FFFFFF */
+  --card-foreground: 20 14.3% 4.1%;
+  --border: 20 5.9% 90%;
+  --input: 20 5.9% 90%;
+  --primary: 207 90% 54%; /* #1976D2 */
+  --primary-foreground: 211 100% 99%;
+  --secondary: 60 4.8% 95.9%;
+  --secondary-foreground: 24 9.8% 10%;
+  --accent: 142 76% 36%; /* #00C853 */
+  --accent-foreground: 60 9.1% 97.8%;
+  --destructive: 0 84.2% 60.2%; /* #F44336 */
+  --destructive-foreground: 60 9.1% 97.8%;
+  --ring: 20 14.3% 4.1%;
+  --radius: 0.5rem;
+  --warning: 36 100% 50%; /* #FF9800 */
+  --surface: 0 0% 100%; /* #FFFFFF */
+}
+
+.dark {
+  --background: 240 10% 3.9%;
+  --foreground: 0 0% 98%;
+  --muted: 240 3.7% 15.9%;
+  --muted-foreground: 240 5% 64.9%;
+  --popover: 240 10% 3.9%;
+  --popover-foreground: 0 0% 98%;
+  --card: 240 10% 3.9%;
+  --card-foreground: 0 0% 98%;
+  --border: 240 3.7% 15.9%;
+  --input: 240 3.7% 15.9%;
+  --primary: 207 90% 54%;
+  --primary-foreground: 211 100% 99%;
+  --secondary: 240 3.7% 15.9%;
+  --secondary-foreground: 0 0% 98%;
+  --accent: 142 76% 36%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --ring: 240 4.9% 83.9%;
+  --radius: 0.5rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+/* Custom CSS variables for the design system */
+:root {
+  --primary-blue: hsl(207, 90%, 54%); /* #1976D2 */
+  --secondary-gray: hsl(0, 0%, 26%); /* #424242 */
+  --accent-green: hsl(142, 100%, 39%); /* #00C853 */
+  --warning-orange: hsl(36, 100%, 50%); /* #FF9800 */
+  --error-red: hsl(4, 90%, 58%); /* #F44336 */
+  --surface-white: hsl(0, 0%, 100%); /* #FFFFFF */
+  --background-gray: hsl(210, 11%, 98%); /* #FAFAFA */
+}
+
+/* FontAwesome icon support for dashboard */
+.fa, .fas, .fab {
+  font-family: "Font Awesome 6 Free", "Font Awesome 6 Brands";
+}
+
+/* Animation for status indicators */
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .5;
+  }
+}
+
+/* Custom utility classes */
+.text-primary {
+  color: var(--primary-blue);
+}
+
+.text-accent {
+  color: var(--accent-green);
+}
+
+.text-warning {
+  color: var(--warning-orange);
+}
+
+.text-error {
+  color: var(--error-red);
+}
+
+.bg-surface {
+  background-color: var(--surface-white);
+}
+
+.bg-background {
+  background-color: var(--background-gray);
+}
+
+/* Mobile Block Layout Styles */
+.mobile-block-container {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.mobile-block-item {
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius));
+  padding: 1rem;
+  background: hsl(var(--card));
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  transition: all 0.2s ease-in-out;
+}
+
+.mobile-block-item:hover {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  transform: translateY(-1px);
+}
+
+/* Navy Blue Header */
+.mobile-header {
+  background: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  padding: 1rem;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+/* Responsive dropdown fixes */
+.dropdown-menu {
+  position: fixed !important;
+  top: auto !important;
+  left: auto !important;
+  right: 1rem;
+  max-width: calc(100vw - 2rem);
+  z-index: 999 !important;
+  background: hsl(var(--popover)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: calc(var(--radius));
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+/* Mobile-specific responsive styles */
+@media (max-width: 768px) {
+  .mobile-only {
+    display: block !important;
+  }
+  
+  .desktop-only {
+    display: none !important;
+  }
+
+  .mobile-grid {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+
+  .mobile-full-width {
+    width: 100% !important;
+  }
+
+  .mobile-block-layout {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+
+  /* Hide table headers on mobile */
+  .table-header {
+    display: none !important;
+  }
+
+  /* Convert table rows to block items */
+  .table-row {
+    display: block !important;
+    border: 1px solid hsl(var(--border)) !important;
+    border-radius: calc(var(--radius)) !important;
+    padding: 1rem !important;
+    margin-bottom: 1rem !important;
+    background: hsl(var(--card)) !important;
+  }
+
+  /* Stack table cells vertically */
+  .table-cell {
+    display: block !important;
+    border: none !important;
+    padding: 0.25rem 0 !important;
+  }
+
+  .table-cell:before {
+    content: attr(data-label) ": ";
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    display: inline-block;
+    min-width: 100px;
+  }
+}
+
+@media (min-width: 769px) {
+  .mobile-only {
+    display: none !important;
+  }
+  
+  .desktop-only {
+    display: block !important;
+  }
+}
