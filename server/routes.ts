@@ -39,6 +39,12 @@ import {
   getVapidPublicKey,
   createAndPushNotification,
 } from "./push-service";
+import {
+  initRealtimeVoiceBridge,
+  getActiveVoiceSessions,
+  getVoiceSessionDetails,
+  AGENT_PERSONAS,
+} from "./services/realtime-voice-bridge";
 import { aiCommandEngineer } from "./ai-command-engineer";
 import { ticketManagementService } from "./ticket-management";
 import { insertSupportTicketSchema } from "@shared/schema";
@@ -70,7 +76,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Initialize notification service with WebSocket support
   notificationService.initialize(httpServer);
-  
+
+  // Initialize realtime voice bridge (Twilio Media Streams ↔ OpenAI Realtime)
+  initRealtimeVoiceBridge(httpServer);
+
   // Initialize advanced services
   console.log('Initializing advanced AI services...');
 
@@ -4861,6 +4870,134 @@ Respond in JSON format:
     } catch (error) {
       console.error('Error updating reminder:', error);
       res.status(500).json({ error: 'Failed to update reminder' });
+    }
+  });
+
+  // ─── Realtime Voice AI Endpoints ───────────────────────────────────────
+
+  /**
+   * TwiML endpoint: Connect an incoming call to the AI voice agent via Media Streams.
+   * Configure your Twilio phone number webhook to POST to /api/twilio/voice-ai
+   * instead of /api/twilio/voice to use the realtime AI voice agent.
+   */
+  app.post('/api/twilio/voice-ai', async (req, res) => {
+    try {
+      const { From, To, CallSid } = req.body;
+      const persona = req.query.persona as string || 'receptionist';
+
+      console.log(`[Voice AI] Incoming call ${CallSid} from ${From} → AI agent (${persona})`);
+
+      // Create call record
+      await storage.createCall({
+        callSid: CallSid,
+        from: From,
+        to: To,
+        status: 'in-progress',
+        direction: 'inbound',
+        organizationId: '88872271-d973-49c5-a3bd-6d4fc18c60f2',
+        callerName: req.body.CallerName,
+        startTime: new Date(),
+        aiHandled: true,
+        forwarded: false,
+      });
+
+      // Build WebSocket URL for Media Streams
+      const host = req.headers.host || 'localhost:5000';
+      const protocol = host.includes('replit') || host.includes('https') ? 'wss' : 'wss';
+      const wsUrl = `${protocol}://${host}/media-stream?persona=${persona}`;
+
+      // TwiML: Connect call to our Media Stream WebSocket → OpenAI Realtime
+      const twiml = new twilio.twiml.VoiceResponse();
+
+      // Brief greeting before AI takes over
+      twiml.say({
+        voice: 'alice',
+        language: 'en-US',
+      }, 'Connecting you now.');
+
+      // Pause briefly, then connect to Media Stream
+      twiml.pause({ length: 1 });
+
+      const connect = twiml.connect();
+      connect.stream({
+        url: wsUrl,
+        statusCallbackEvent: ['connected', 'completed'],
+      });
+
+      res.type('text/xml');
+      res.send(twiml.toString());
+    } catch (error) {
+      console.error('[Voice AI] Error handling voice-ai webhook:', error);
+      // Fallback to standard call handling
+      res.type('text/xml');
+      res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say>We're experiencing a temporary issue. Please call back shortly.</Say>
+  <Hangup/>
+</Response>`);
+    }
+  });
+
+  /** Get active realtime voice sessions (for dashboard) */
+  app.get('/api/voice/sessions', (_req, res) => {
+    res.json({
+      activeSessions: getActiveVoiceSessions(),
+      sessions: getVoiceSessionDetails(),
+    });
+  });
+
+  /** Get available AI voice personas */
+  app.get('/api/voice/personas', (_req, res) => {
+    res.json(
+      Object.entries(AGENT_PERSONAS).map(([id, prompt]) => ({
+        id,
+        name: id.charAt(0).toUpperCase() + id.slice(1),
+        promptPreview: prompt.substring(0, 100) + '...',
+      }))
+    );
+  });
+
+  /** Browser-based voice: get a session token for direct WebRTC (OpenAI Realtime) */
+  app.post('/api/voice/browser-session', async (req, res) => {
+    try {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        return res.status(503).json({ error: 'Voice AI not configured — OPENAI_API_KEY missing' });
+      }
+
+      const { persona = 'assistant' } = req.body;
+
+      // Request an ephemeral token from OpenAI for client-side WebRTC
+      const tokenRes = await fetch('https://api.openai.com/v1/realtime/sessions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-realtime-preview-2024-12-17',
+          voice: 'alloy',
+          instructions: AGENT_PERSONAS[persona] || AGENT_PERSONAS.assistant,
+          modalities: ['text', 'audio'],
+          turn_detection: {
+            type: 'server_vad',
+            threshold: 0.5,
+            silence_duration_ms: 500,
+          },
+        }),
+      });
+
+      if (!tokenRes.ok) {
+        const err = await tokenRes.text();
+        console.error('[Voice AI] Failed to get ephemeral token:', err);
+        return res.status(502).json({ error: 'Failed to create voice session' });
+      }
+
+      const sessionData = await tokenRes.json();
+      res.json(sessionData);
+    } catch (error) {
+      console.error('[Voice AI] Browser session error:', error);
+      res.status(500).json({ error: 'Failed to create browser voice session' });
     }
   });
 
