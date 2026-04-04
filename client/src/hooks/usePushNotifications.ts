@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
-interface PushSubscription {
+interface PushSubscriptionData {
   endpoint: string;
   keys: {
     p256dh: string;
@@ -8,222 +8,173 @@ interface PushSubscription {
   };
 }
 
-interface NotificationPermission {
-  granted: boolean;
-  denied: boolean;
-  default: boolean;
-}
-
 export function usePushNotifications() {
   const [isSupported, setIsSupported] = useState(false);
-  const [subscription, setSubscription] = useState<PushSubscription | null>(null);
-  const [permission, setPermission] = useState<NotificationPermission>({
-    granted: false,
-    denied: false,
-    default: true
-  });
+  const [subscription, setSubscription] = useState<PushSubscriptionData | null>(null);
+  const [permission, setPermission] = useState<{
+    granted: boolean;
+    denied: boolean;
+    default: boolean;
+  }>({ granted: false, denied: false, default: true });
   const [isLoading, setIsLoading] = useState(false);
+  const [vapidKey, setVapidKey] = useState<string | null>(null);
+  const [isConfigured, setIsConfigured] = useState(false);
 
   useEffect(() => {
-    // Check if push notifications are supported
     const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
     setIsSupported(supported);
 
     if (supported) {
-      // Check current permission status
-      const currentPermission = Notification.permission;
       setPermission({
-        granted: currentPermission === 'granted',
-        denied: currentPermission === 'denied',
-        default: currentPermission === 'default'
+        granted: Notification.permission === 'granted',
+        denied: Notification.permission === 'denied',
+        default: Notification.permission === 'default',
       });
 
-      // Register service worker
-      registerServiceWorker();
+      // Fetch VAPID key from server + register SW
+      initPush();
     }
   }, []);
 
-  const registerServiceWorker = async () => {
+  const initPush = async () => {
     try {
-      if ('serviceWorker' in navigator) {
-        const registration = await navigator.serviceWorker.register('/sw.js');
-        console.log('Service Worker registered:', registration);
-        
-        // Check for existing subscription
-        checkExistingSubscription(registration);
-      }
-    } catch (error) {
-      console.error('Service Worker registration failed:', error);
-    }
-  };
+      // Fetch VAPID public key from server
+      const res = await fetch('/api/push/vapid-key');
+      const { publicKey, configured } = await res.json();
+      setVapidKey(publicKey || null);
+      setIsConfigured(configured);
 
-  const checkExistingSubscription = async (registration: ServiceWorkerRegistration) => {
-    try {
-      const existingSubscription = await registration.pushManager.getSubscription();
-      if (existingSubscription) {
+      // Register service worker
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      console.log('[Push] Service Worker registered');
+
+      // Check for existing subscription
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) {
         setSubscription({
-          endpoint: existingSubscription.endpoint,
+          endpoint: existing.endpoint,
           keys: {
-            p256dh: arrayBufferToBase64(existingSubscription.getKey('p256dh')!),
-            auth: arrayBufferToBase64(existingSubscription.getKey('auth')!)
-          }
+            p256dh: arrayBufferToBase64(existing.getKey('p256dh')!),
+            auth: arrayBufferToBase64(existing.getKey('auth')!),
+          },
         });
       }
     } catch (error) {
-      console.error('Error checking existing subscription:', error);
+      console.error('[Push] Init failed:', error);
     }
   };
 
-  const requestPermission = async (): Promise<boolean> => {
-    if (!isSupported) {
-      throw new Error('Push notifications are not supported on this device');
-    }
-
+  const requestPermission = useCallback(async (): Promise<boolean> => {
+    if (!isSupported) return false;
     setIsLoading(true);
-
     try {
       const result = await Notification.requestPermission();
-      
       setPermission({
         granted: result === 'granted',
         denied: result === 'denied',
-        default: result === 'default'
+        default: result === 'default',
       });
-
-      setIsLoading(false);
       return result === 'granted';
-    } catch (error) {
+    } finally {
       setIsLoading(false);
-      throw new Error('Failed to request notification permission');
     }
-  };
+  }, [isSupported]);
 
-  const subscribe = async (): Promise<PushSubscription> => {
-    if (!isSupported) {
-      throw new Error('Push notifications are not supported');
+  const subscribe = useCallback(async (): Promise<PushSubscriptionData | null> => {
+    if (!isSupported || !vapidKey) {
+      console.warn('[Push] Cannot subscribe — not supported or VAPID key missing');
+      return null;
     }
 
     if (!permission.granted) {
       const granted = await requestPermission();
-      if (!granted) {
-        throw new Error('Notification permission denied');
-      }
+      if (!granted) return null;
     }
 
     setIsLoading(true);
-
     try {
       const registration = await navigator.serviceWorker.ready;
-      
-      // VAPID public key (you would generate this on your server)
-      const vapidPublicKey = 'BEl62iUYgUivxIkv69yViEuiBIa40HI6LeSr-oX7S4wYVNEqB6_m4yDqNFCb6tEMjSLRpMYaklBb5NzWOc6o4bw';
-      
-      const pushSubscription = await registration.pushManager.subscribe({
+
+      const pushSub = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+        applicationServerKey: urlBase64ToUint8Array(vapidKey),
       });
 
-      const subscriptionData = {
-        endpoint: pushSubscription.endpoint,
+      const subData: PushSubscriptionData = {
+        endpoint: pushSub.endpoint,
         keys: {
-          p256dh: arrayBufferToBase64(pushSubscription.getKey('p256dh')!),
-          auth: arrayBufferToBase64(pushSubscription.getKey('auth')!)
-        }
+          p256dh: arrayBufferToBase64(pushSub.getKey('p256dh')!),
+          auth: arrayBufferToBase64(pushSub.getKey('auth')!),
+        },
       };
 
-      setSubscription(subscriptionData);
-
-      // Send subscription to server
+      // Send to server for persistence
       await fetch('/api/push-subscription', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(subscriptionData)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: subData }),
       });
 
-      setIsLoading(false);
-      return subscriptionData;
+      setSubscription(subData);
+      console.log('[Push] Subscribed successfully');
+      return subData;
     } catch (error) {
+      console.error('[Push] Subscribe failed:', error);
+      return null;
+    } finally {
       setIsLoading(false);
-      throw new Error('Failed to subscribe to push notifications');
     }
-  };
+  }, [isSupported, vapidKey, permission.granted, requestPermission]);
 
-  const unsubscribe = async (): Promise<void> => {
-    if (!subscription) {
-      return;
-    }
-
+  const unsubscribe = useCallback(async (): Promise<void> => {
+    if (!subscription) return;
     setIsLoading(true);
-
     try {
       const registration = await navigator.serviceWorker.ready;
-      const pushSubscription = await registration.pushManager.getSubscription();
-      
-      if (pushSubscription) {
-        await pushSubscription.unsubscribe();
-      }
+      const pushSub = await registration.pushManager.getSubscription();
+      if (pushSub) await pushSub.unsubscribe();
 
-      // Remove subscription from server
       await fetch('/api/push-subscription', {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ endpoint: subscription.endpoint })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: subscription.endpoint }),
       });
 
       setSubscription(null);
+    } finally {
       setIsLoading(false);
-    } catch (error) {
-      setIsLoading(false);
-      throw new Error('Failed to unsubscribe from push notifications');
     }
-  };
+  }, [subscription]);
 
-  const testNotification = async (title: string, body: string) => {
-    if (!permission.granted) {
-      throw new Error('Notification permission not granted');
-    }
+  const testNotification = useCallback(async (title?: string, body?: string) => {
+    await fetch('/api/test-push-notification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, body }),
+    });
+  }, []);
 
-    try {
-      // Send test notification via server
-      await fetch('/api/test-push-notification', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title,
-          body,
-          icon: '/generated-icon.png',
-          badge: '/generated-icon.png',
-          tag: 'test',
-          data: {
-            url: '/',
-            timestamp: Date.now()
-          }
-        })
-      });
-    } catch (error) {
-      throw new Error('Failed to send test notification');
+  // Auto-subscribe when permission is granted and VAPID key is available
+  useEffect(() => {
+    if (permission.granted && vapidKey && !subscription && isConfigured) {
+      subscribe();
     }
-  };
+  }, [permission.granted, vapidKey, subscription, isConfigured, subscribe]);
 
   return {
     isSupported,
+    isConfigured,
     subscription,
     permission,
     isLoading,
     requestPermission,
     subscribe,
     unsubscribe,
-    testNotification
+    testNotification,
   };
 }
 
-// Utility functions
+// Utility: ArrayBuffer → base64
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = '';
@@ -233,15 +184,12 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
+// Utility: URL-safe base64 → Uint8Array (for VAPID applicationServerKey)
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding)
-    .replace(/-/g, '+')
-    .replace(/_/g, '/');
-
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
   const rawData = atob(base64);
   const outputArray = new Uint8Array(rawData.length);
-
   for (let i = 0; i < rawData.length; ++i) {
     outputArray[i] = rawData.charCodeAt(i);
   }

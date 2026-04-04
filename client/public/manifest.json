@@ -44,8 +44,21 @@
     "Fast",
     "Simple"
   ],
-  "related_applications": [],
+  "related_applications": [
+    {
+      "platform": "play",
+      "id": "com.aicallassistant.app"
+    },
+    {
+      "platform": "itunes",
+      "url": "https://apps.apple.com/app/ai-call-assistant/id000000000"
+    }
+  ],
   "prefer_related_applications": false,
+  "permissions": [
+    "notifications",
+    "push"
+  ],
   "edge_side_panel": {
     "preferred_width": 400
   },

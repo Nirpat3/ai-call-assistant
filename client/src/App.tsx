@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
+import { useEffect } from "react";
 import Dashboard from "@/pages/dashboard";
 import CallSettings from "@/pages/call-settings";
 import CallLog from "@/pages/call-log";
@@ -189,6 +190,15 @@ function Router() {
 }
 
 function App() {
+  // Initialize native push notifications (Capacitor — iOS/Android)
+  useEffect(() => {
+    import('./lib/native-push').then(({ initNativePush }) => {
+      initNativePush();
+    }).catch(() => {
+      // Not running as native app — service worker handles push instead
+    });
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

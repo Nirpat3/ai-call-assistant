@@ -28,6 +28,17 @@ import { intelligentCallRouter } from "./services/IntelligentCallRouter";
 import { phdAIEngineer } from "./ai-phd-engineer";
 import * as orgRoutes from "./organization-routes";
 import { smartSupportAutomation } from "./smart-support-automation";
+import {
+  savePushSubscription,
+  removePushSubscription,
+  getSubscriptions,
+  sendPushBroadcast,
+  sendMissedCallPush,
+  sendVoicemailPush,
+  isPushConfigured,
+  getVapidPublicKey,
+  createAndPushNotification,
+} from "./push-service";
 import { aiCommandEngineer } from "./ai-command-engineer";
 import { ticketManagementService } from "./ticket-management";
 import { insertSupportTicketSchema } from "@shared/schema";
@@ -2354,9 +2365,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const webhookData = req.body;
       const twiml = await handleRecording(webhookData);
-      
+
       // Broadcast voicemail update to dashboard
       broadcast({ type: 'voicemail-received', data: webhookData });
+
+      // Send voicemail push notification
+      const callerNumber = webhookData.From || webhookData.Caller || 'Unknown';
+      const duration = parseInt(webhookData.RecordingDuration || '0', 10);
+      sendVoicemailPush(callerNumber, duration, webhookData.TranscriptionText).catch(err =>
+        console.error('[Push] Voicemail notification failed:', err)
+      );
       
       res.type('text/xml');
       res.send(twiml);
@@ -2385,7 +2403,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }, "Your call has been completed. Thank you for calling!");
         twiml.hangup();
       } else if (DialCallStatus === 'busy') {
-        twiml.say({ 
+        // Send missed call push (busy = still missed)
+        const busyCaller = req.body.From || req.body.Caller || 'Unknown';
+        sendMissedCallPush(busyCaller, req.body.To || '', CallSid).catch(err =>
+          console.error('[Push] Busy call notification failed:', err)
+        );
+
+        twiml.say({
           voice: 'alice',
           language: 'en-US'
         }, "Our team is currently busy. Please leave a message and we'll call you back within 2 hours.");
@@ -2406,7 +2430,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }, "Thank you for your message. We'll get back to you soon. Goodbye!");
         twiml.hangup();
       } else if (DialCallStatus === 'no-answer') {
-        twiml.say({ 
+        // Send missed call push notification to all devices
+        const callerNumber = req.body.From || req.body.Caller || 'Unknown';
+        const calledNumber = req.body.To || req.body.Called || '';
+        // Lookup caller name from contacts (best effort)
+        let callerName: string | undefined;
+        try {
+          const contacts = await storage.getContacts();
+          const match = contacts.find((c: any) =>
+            c.phoneNumbers?.some((p: any) => p.number === callerNumber || p.number?.replace(/\D/g, '') === callerNumber.replace(/\D/g, ''))
+          );
+          if (match) callerName = `${match.firstName || ''} ${match.lastName || ''}`.trim();
+        } catch (_) { /* best effort */ }
+
+        sendMissedCallPush(callerNumber, calledNumber, CallSid, callerName).catch(err =>
+          console.error('[Push] Missed call notification failed:', err)
+        );
+
+        twiml.say({
           voice: 'alice',
           language: 'en-US'
         }, "Our team is currently unavailable. Please leave a message and we'll get back to you today.");
@@ -2743,14 +2784,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Push notification endpoints
-  const pushSubscriptions = new Map<string, any>();
+  // Push notification endpoints (Web Push Protocol via web-push library)
+
+  // Return VAPID public key so the client can subscribe
+  app.get('/api/push/vapid-key', (_req, res) => {
+    res.json({ publicKey: getVapidPublicKey(), configured: isPushConfigured() });
+  });
 
   app.post('/api/push-subscription', async (req, res) => {
     try {
-      const subscription = req.body;
-      pushSubscriptions.set(subscription.endpoint, subscription);
-      console.log('Push subscription saved:', subscription.endpoint.substring(0, 50) + '...');
+      const { subscription, userId } = req.body;
+      const sub = subscription || req.body; // support both formats
+      if (!sub.endpoint || !sub.keys?.p256dh || !sub.keys?.auth) {
+        return res.status(400).json({ error: 'Invalid subscription — missing endpoint or keys' });
+      }
+      await savePushSubscription(
+        userId ?? null,
+        { endpoint: sub.endpoint, keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth } },
+        req.headers['user-agent']
+      );
       res.json({ success: true });
     } catch (error) {
       console.error('Error saving push subscription:', error);
@@ -2761,8 +2813,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/push-subscription', async (req, res) => {
     try {
       const { endpoint } = req.body;
-      pushSubscriptions.delete(endpoint);
-      console.log('Push subscription removed:', endpoint.substring(0, 50) + '...');
+      if (!endpoint) return res.status(400).json({ error: 'Missing endpoint' });
+      await removePushSubscription(endpoint);
       res.json({ success: true });
     } catch (error) {
       console.error('Error removing push subscription:', error);
@@ -2772,23 +2824,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/test-push-notification', async (req, res) => {
     try {
-      const notificationData = req.body;
-      
-      // In a real implementation, you would use a service like Firebase Cloud Messaging
-      // or web-push library to send actual push notifications
-      console.log('Test push notification requested:', notificationData);
-      
-      // Simulate sending push notification to all subscribed devices
-      pushSubscriptions.forEach((subscription, endpoint) => {
-        console.log(`Sending push notification to ${endpoint.substring(0, 50)}...`);
-        // Here you would use the Web Push Protocol to send the notification
-        // For now, we'll just log it as a simulation
-      });
-      
-      res.json({ 
-        success: true, 
-        message: 'Test notification sent to all subscribed devices',
-        subscriberCount: pushSubscriptions.size
+      const { title, body, userId } = req.body;
+      const payload = {
+        title: title || 'Test Notification',
+        body: body || 'This is a test push notification from AI Call Assistant',
+        icon: '/generated-icon.png',
+        badge: '/generated-icon.png',
+        tag: `test-${Date.now()}`,
+        data: { url: '/', timestamp: Date.now() },
+      };
+
+      const subs = await getSubscriptions(userId);
+      const sent = await sendPushBroadcast(payload);
+
+      res.json({
+        success: true,
+        message: `Push sent to ${sent}/${subs.length} devices`,
+        subscriberCount: subs.length,
+        sentCount: sent,
+        configured: isPushConfigured(),
       });
     } catch (error) {
       console.error('Error sending test push notification:', error);

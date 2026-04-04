@@ -1093,6 +1093,40 @@ export type InsertAICommandKnowledge = z.infer<typeof insertAICommandKnowledgeSc
 export type AIReminder = typeof aiReminders.$inferSelect;
 export type InsertAIReminder = z.infer<typeof insertAIReminderSchema>;
 
+// Push notification subscriptions (persisted — replaces in-memory Map)
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
+  endpoint: text("endpoint").notNull().unique(),
+  p256dh: text("p256dh").notNull(),       // public key
+  auth: text("auth").notNull(),             // auth secret
+  userAgent: text("user_agent"),            // device info for debugging
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).defaultNow(),
+  lastUsedAt: timestamp("last_used_at", { mode: 'date', withTimezone: true }).defaultNow(),
+});
+
+export const insertPushSubscriptionSchema = createInsertSchema(pushSubscriptions);
+export type PushSubscriptionRecord = typeof pushSubscriptions.$inferSelect;
+export type InsertPushSubscription = z.infer<typeof insertPushSubscriptionSchema>;
+
+// Persisted notifications (replaces stubbed storage methods)
+export const persistedNotifications = pgTable("persisted_notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
+  organizationId: uuid("organization_id").references(() => organizations.id),
+  type: text("type").notNull(),             // missed_call, voicemail, sms, system
+  title: text("title").notNull(),
+  body: text("body"),
+  data: jsonb("data").default({}),          // { callId, callerId, url, ... }
+  isRead: boolean("is_read").notNull().default(false),
+  pushSent: boolean("push_sent").notNull().default(false),
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).defaultNow(),
+});
+
+export const insertPersistedNotificationSchema = createInsertSchema(persistedNotifications);
+export type PersistedNotification = typeof persistedNotifications.$inferSelect;
+export type InsertPersistedNotification = z.infer<typeof insertPersistedNotificationSchema>;
+
 // Extended types for UI
 export type AIConversationWithMessages = AIConversation & {
   messages: AIMessage[];

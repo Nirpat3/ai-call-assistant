@@ -1,14 +1,13 @@
-// Service Worker for Push Notifications
-const CACHE_NAME = 'ai-call-assistant-v1';
+// Service Worker for AI Call Assistant — Push Notifications + Offline Cache
+const CACHE_NAME = 'ai-call-assistant-v2';
 const urlsToCache = [
   '/',
-  '/static/js/bundle.js',
-  '/static/css/main.css',
   '/generated-icon.png'
 ];
 
-// Install event - cache resources
+// Install event — cache shell resources
 self.addEventListener('install', function(event) {
+  self.skipWaiting(); // Activate immediately
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(function(cache) {
@@ -17,121 +16,161 @@ self.addEventListener('install', function(event) {
   );
 });
 
-// Fetch event - serve from cache when offline
-self.addEventListener('fetch', function(event) {
-  event.respondWith(
-    caches.match(event.request)
-      .then(function(response) {
-        // Return cached version or fetch from network
-        return response || fetch(event.request);
-      }
-    )
+// Activate event — clean old caches
+self.addEventListener('activate', function(event) {
+  event.waitUntil(
+    caches.keys().then(function(cacheNames) {
+      return Promise.all(
+        cacheNames
+          .filter(function(name) { return name !== CACHE_NAME; })
+          .map(function(name) { return caches.delete(name); })
+      );
+    }).then(function() {
+      return self.clients.claim(); // Take control of all pages immediately
+    })
   );
 });
 
-// Push event - handle incoming push notifications
-self.addEventListener('push', function(event) {
-  console.log('Push message received:', event);
+// Fetch event — network-first with cache fallback
+self.addEventListener('fetch', function(event) {
+  // Skip non-GET and API requests
+  if (event.request.method !== 'GET' || event.request.url.includes('/api/')) {
+    return;
+  }
 
-  let notificationData = {
+  event.respondWith(
+    fetch(event.request)
+      .then(function(response) {
+        // Cache successful responses
+        if (response.ok) {
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then(function(cache) {
+            cache.put(event.request, responseClone);
+          });
+        }
+        return response;
+      })
+      .catch(function() {
+        return caches.match(event.request);
+      })
+  );
+});
+
+// Push event — show native notification on device
+self.addEventListener('push', function(event) {
+  console.log('[SW] Push received');
+
+  let data = {
     title: 'AI Call Assistant',
     body: 'You have a new notification',
     icon: '/generated-icon.png',
     badge: '/generated-icon.png',
     tag: 'default',
-    data: {
-      url: '/',
-      timestamp: Date.now()
-    }
+    requireInteraction: false,
+    actions: [
+      { action: 'open', title: 'View' },
+      { action: 'dismiss', title: 'Dismiss' }
+    ],
+    data: { url: '/', timestamp: Date.now() }
   };
 
-  // Parse notification data if provided
   if (event.data) {
     try {
-      const data = event.data.json();
-      notificationData = { ...notificationData, ...data };
+      const payload = event.data.json();
+      data = { ...data, ...payload };
     } catch (e) {
-      notificationData.body = event.data.text();
+      data.body = event.data.text();
     }
   }
 
-  const notificationPromise = self.registration.showNotification(
-    notificationData.title,
-    {
-      body: notificationData.body,
-      icon: notificationData.icon,
-      badge: notificationData.badge,
-      tag: notificationData.tag,
-      data: notificationData.data,
-      requireInteraction: true,
-      actions: [
-        {
-          action: 'open',
-          title: 'Open App'
-        },
-        {
-          action: 'dismiss',
-          title: 'Dismiss'
-        }
-      ]
-    }
-  );
+  const options = {
+    body: data.body,
+    icon: data.icon || '/generated-icon.png',
+    badge: data.badge || '/generated-icon.png',
+    tag: data.tag,
+    data: data.data || {},
+    requireInteraction: data.requireInteraction || false,
+    actions: data.actions || [],
+    vibrate: [200, 100, 200, 100, 200], // Vibration pattern for mobile
+    renotify: true, // Vibrate again even if same tag
+    silent: false,
+  };
 
-  event.waitUntil(notificationPromise);
+  // Missed call — high priority with call-back action
+  if (data.data && data.data.type === 'missed_call') {
+    options.requireInteraction = true;
+    options.vibrate = [300, 100, 300, 100, 300, 100, 300];
+    options.actions = [
+      { action: 'callback', title: 'Call Back' },
+      { action: 'open', title: 'View Details' }
+    ];
+  }
+
+  // Voicemail — medium priority
+  if (data.data && data.data.type === 'voicemail') {
+    options.actions = [
+      { action: 'open', title: 'Listen' },
+      { action: 'dismiss', title: 'Later' }
+    ];
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options)
+  );
 });
 
-// Notification click event - handle user interaction
+// Notification click — handle actions
 self.addEventListener('notificationclick', function(event) {
-  console.log('Notification clicked:', event);
-
   event.notification.close();
 
-  if (event.action === 'dismiss') {
+  const action = event.action;
+  const notifData = event.notification.data || {};
+
+  // Dismiss action — just close
+  if (action === 'dismiss') {
     return;
   }
 
-  // Default action or 'open' action
-  const urlToOpen = event.notification.data?.url || '/';
+  // Determine which URL to open
+  let urlToOpen = '/';
+
+  if (action === 'callback' && notifData.callFrom) {
+    // Open call-back page with the caller's number
+    urlToOpen = `/call-log?callback=${encodeURIComponent(notifData.callFrom)}`;
+  } else if (action === 'open' || !action) {
+    urlToOpen = notifData.url || '/call-log';
+  }
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true })
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then(function(clientList) {
-        // Check if app is already open
-        for (let i = 0; i < clientList.length; i++) {
-          const client = clientList[i];
+        // Focus existing window if open
+        for (const client of clientList) {
           if (client.url.includes(self.location.origin) && 'focus' in client) {
+            client.navigate(urlToOpen);
             return client.focus();
           }
         }
-        // Open new window if app is not open
-        if (clients.openWindow) {
-          return clients.openWindow(urlToOpen);
+        // Open new window
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(urlToOpen);
         }
       })
   );
 });
 
-// Background sync for offline actions
+// Background sync for offline queued actions
 self.addEventListener('sync', function(event) {
-  if (event.tag === 'background-sync') {
+  if (event.tag === 'sync-notifications') {
     event.waitUntil(
-      // Perform background sync operations
-      console.log('Background sync triggered')
+      fetch('/api/notifications?unread=true')
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+          console.log('[SW] Background sync: fetched', data.length, 'unread notifications');
+        })
+        .catch(function(err) {
+          console.log('[SW] Background sync failed:', err.message);
+        })
     );
   }
-});
-
-// Handle service worker activation
-self.addEventListener('activate', function(event) {
-  event.waitUntil(
-    caches.keys().then(function(cacheNames) {
-      return Promise.all(
-        cacheNames.map(function(cacheName) {
-          if (cacheName !== CACHE_NAME) {
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
-  );
 });
