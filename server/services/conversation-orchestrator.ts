@@ -284,6 +284,7 @@ Entities to extract:
   }> {
     const { voiceProviderManager } = await import("./voice-provider");
 
+    const { PERSONA_VOICE_MAP } = await import("./realtime-voice-bridge");
     const defaultPersona = agentRole.systemPrompt || `You are a ${agentRole.name}. ${agentRole.capabilities?.join(". ") || ""}`;
     const voiceMap: Record<string, string> = {
       receptionist: "NATF2",
@@ -291,8 +292,12 @@ Entities to extract:
       sales: "NATM0",
       billing: "NATF3",
       support: "NATM1",
+      shre: "VARM0",
+      ellie: "VARF0",
+      assistant: "NATF0",
     };
-    const voice = voiceMap[agentRole.name] || "NATF2";
+    const mapped = PERSONA_VOICE_MAP[agentRole.name];
+    const voice = mapped?.personaplexVoice || voiceMap[agentRole.name] || "NATF2";
 
     const session = await voiceProviderManager.createPersonaPlexSession({
       voice,

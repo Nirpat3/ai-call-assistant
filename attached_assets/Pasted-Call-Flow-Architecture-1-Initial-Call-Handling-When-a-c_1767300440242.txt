@@ -1,0 +1,47 @@
+Call Flow Architecture
+1. Initial Call Handling
+When a call comes to +17274362999 (your Twilio number):
+• Contact Recognition: System checks if caller is a known contact in the database
+• Route Assignment: Applies contact-specific routing rules (block, forward, voicemail, AI)
+• Call Recording: Creates call record with caller info and routing decision
+2. AI-Powered Greeting System
+The system provides intelligent greetings based on caller status:
+• VIP Contacts: "Hello [Name], welcome back! I'm your AI assistant..."
+• Known Contacts: "Hello [Name], thank you for calling. I'm here to assist you..."
+• Unknown Callers: Uses configurable AI greeting + menu options
+3. Multi-Modal Input Processing
+Callers can interact via:
+• Speech Input: Natural language processed by OpenAI for intent analysis
+• DTMF Tones: Press 1 (Sales), 2 (Support), 3 (Voicemail), 0 (AI Continue)
+4. Intelligent Routing Engine
+Speech Analysis Tools:
+• OpenAI GPT-4o: Analyzes caller intent and extracts keywords
+• Keyword Matching: Compares against configured route keywords
+• Human Escalation Detection: Recognizes requests for human agents
+Routing Destinations:
+• Press 1 or "sales" keywords → +1404-590-1101 (Sales)
+• Press 2 or "support" keywords → +1888-727-4302 (Support)
+• Press 3 or voicemail request → Voicemail system
+• Press 0 or AI keywords → Continues AI conversation
+5. AI Conversation Tools
+Core AI Components:
+• OpenAI Whisper: Real-time speech-to-text transcription
+• GPT-4o: Intent analysis, keyword extraction, response generation
+• Knowledge Base Integration: Searches uploaded documents and manual entries
+• Confidence Scoring: 90% threshold for AI responses
+Conversation Workflow:
+• Intent Analysis: Determines caller's purpose and urgency
+• Knowledge Retrieval: Searches relevant documentation and FAQs
+• Response Generation: Creates contextually appropriate responses
+• Escalation Logic: Transfers to human when confidence < 90% or explicitly requested
+6. Recording and Transcription
+• Automatic Recording: All calls recorded with 120-second max length
+• Dual Transcription: Twilio native + OpenAI Whisper backup
+• Call Summarization: GPT-4o generates professional summaries
+• Conversation Logging: Stores full interaction history with confidence scores
+7. Post-Call Processing
+• Notification System: SMS/email alerts for important calls
+• Integration Hooks: Slack, Teams, Zapier webhooks for call events
+• Analytics Tracking: Call volume, AI success rates, routing effectiveness
+• Follow-up Actions: Automated notifications and CRM updates
+The system creates a seamless experience where callers receive immediate AI assistance with intelligent routing to human agents when needed, while maintaining complete conversation history and analytics for b

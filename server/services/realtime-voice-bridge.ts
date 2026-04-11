@@ -15,24 +15,28 @@ import { WebSocket as WS, WebSocketServer } from 'ws';
 import type { Server } from 'http';
 import type { IncomingMessage } from 'http';
 import { voiceProviderManager } from './voice-provider';
+import { storage } from '../storage';
+import { ConversationAgent, createAgent, getAgentDNA } from './agent-anatomy';
+import { notifyMissedCall, notifyCallSummary } from './sms-alerts';
 
 const OPENAI_REALTIME_URL = 'wss://api.openai.com/v1/realtime';
 const OPENAI_MODEL = 'gpt-4o-realtime-preview-2024-12-17';
 
-// Agent persona prompts for different AI personalities
-export const AGENT_PERSONAS: Record<string, string> = {
-  receptionist: `You are a professional and warm AI receptionist for a business. You answer incoming calls, help callers with their questions, take messages, and route calls appropriately. Be friendly, concise, and helpful. If you don't know something, offer to take a message or transfer to the right department.`,
-
-  sales: `You are a knowledgeable and enthusiastic sales representative. Help callers understand products and services, answer pricing questions, and guide them toward the right solution. Be persuasive but not pushy. Always listen to the caller's needs first.`,
-
-  support: `You are a patient and thorough technical support agent. Help callers troubleshoot issues step by step. Ask clarifying questions, provide clear instructions, and confirm the issue is resolved before ending the call. If you can't resolve it, escalate with full context.`,
-
-  shre: `You are Shre, the CEO of a cutting-edge AI platform company. You speak with authority, vision, and warmth. You understand technology deeply but explain it simply. You're decisive, strategic, and always thinking about how to create value. Keep responses concise and executive-level.`,
-
-  ellie: `You are Ellie, the President of operations at an AI platform company. You're organized, detail-oriented, and action-focused. You bridge strategy and execution. You ask the right questions and ensure nothing falls through the cracks. Professional but approachable.`,
-
-  assistant: `You are a helpful personal assistant. You help with scheduling, reminders, information lookup, and task management. Be proactive in suggesting solutions and always confirm action items before ending the conversation.`,
+export const PERSONA_VOICE_MAP: Record<string, { openaiVoice: string; personaplexVoice: string; gender: string }> = {
+  receptionist: { openaiVoice: 'shimmer', personaplexVoice: 'NATF2', gender: 'female' },
+  sales:        { openaiVoice: 'echo',    personaplexVoice: 'NATM0', gender: 'male' },
+  support:      { openaiVoice: 'coral',   personaplexVoice: 'NATF1', gender: 'female' },
+  shre:         { openaiVoice: 'ash',     personaplexVoice: 'VARM0', gender: 'male' },
+  ellie:        { openaiVoice: 'sage',    personaplexVoice: 'VARF0', gender: 'female' },
+  assistant:    { openaiVoice: 'ballad',  personaplexVoice: 'NATF0', gender: 'female' },
 };
+
+export const AGENT_PERSONAS: Record<string, string> = {};
+
+for (const [persona] of Object.entries(PERSONA_VOICE_MAP)) {
+  const dna = getAgentDNA(persona);
+  AGENT_PERSONAS[persona] = `You are ${dna.name}. ${dna.identity}\nPersonality: ${dna.personality.join(', ')}\nValues: ${dna.values.join('. ')}\nStyle: ${dna.communicationStyle}`;
+}
 
 interface MediaStreamSession {
   streamSid: string;
@@ -41,6 +45,7 @@ interface MediaStreamSession {
   twilioWs: WS;
   persona: string;
   startTime: number;
+  agent: ConversationAgent;
 }
 
 const activeSessions = new Map<string, MediaStreamSession>();
@@ -81,8 +86,8 @@ export function initRealtimeVoiceBridge(server: Server): void {
             console.log('[Voice Bridge] Twilio Media Stream connected');
             break;
 
-          case 'start':
-            // Twilio tells us the stream is starting — create OpenAI session
+          case 'start': {
+            const agent = createAgent(persona, msg.start.callSid);
             session = {
               streamSid: msg.start.streamSid,
               callSid: msg.start.callSid,
@@ -90,14 +95,21 @@ export function initRealtimeVoiceBridge(server: Server): void {
               twilioWs,
               persona,
               startTime: Date.now(),
+              agent,
             };
             activeSessions.set(msg.start.streamSid, session);
 
-            console.log(`[Voice Bridge] Stream started: ${msg.start.streamSid}, call: ${msg.start.callSid}`);
+            console.log(`[Voice Bridge] Stream started: ${msg.start.streamSid}, agent: ${agent.dna.name} (${agent.dna.role})`);
 
-            // Connect to OpenAI Realtime API
+            const callerPhone = msg.start.customParameters?.From || null;
+            if (callerPhone) {
+              await agent.loadCallerContext(callerPhone);
+              console.log(`[Voice Bridge] Loaded caller context: ${agent.memory.longTerm.callerName || 'unknown'}, VIP: ${agent.memory.longTerm.isVip}, prev calls: ${agent.memory.longTerm.previousCalls}`);
+            }
+
             await connectToOpenAI(session);
             break;
+          }
 
           case 'media':
             // Forward Twilio audio → OpenAI Realtime
@@ -155,88 +167,30 @@ async function connectToOpenAI(session: MediaStreamSession): Promise<void> {
   openaiWs.on('open', () => {
     console.log(`[Voice Bridge] Connected to OpenAI Realtime for stream: ${session.streamSid}`);
 
-    // Configure the session
+    const agent = session.agent;
+    const systemPrompt = agent.buildSystemPrompt();
+    const tools = agent.getToolDefinitions();
+
     openaiWs.send(JSON.stringify({
       type: 'session.update',
       session: {
         turn_detection: {
-          type: 'server_vad',         // Server-side voice activity detection
+          type: 'server_vad',
           threshold: 0.5,
           prefix_padding_ms: 300,
-          silence_duration_ms: 500,   // 500ms silence = end of turn
+          silence_duration_ms: 500,
         },
-        input_audio_format: 'g711_ulaw',  // Twilio sends mulaw
-        output_audio_format: 'g711_ulaw', // Twilio expects mulaw
-        voice: 'alloy',                    // OpenAI voice
-        instructions: AGENT_PERSONAS[session.persona] || AGENT_PERSONAS.receptionist,
+        input_audio_format: 'g711_ulaw',
+        output_audio_format: 'g711_ulaw',
+        voice: PERSONA_VOICE_MAP[session.persona]?.openaiVoice || 'shimmer',
+        instructions: systemPrompt,
         modalities: ['text', 'audio'],
-        temperature: 0.7,
-        tools: [
-          {
-            type: 'function',
-            name: 'transfer_call',
-            description: 'Transfer the caller to a specific department or person',
-            parameters: {
-              type: 'object',
-              properties: {
-                department: {
-                  type: 'string',
-                  enum: ['sales', 'support', 'billing', 'manager'],
-                  description: 'The department to transfer to',
-                },
-                reason: {
-                  type: 'string',
-                  description: 'Why the caller needs to be transferred',
-                },
-              },
-              required: ['department'],
-            },
-          },
-          {
-            type: 'function',
-            name: 'take_message',
-            description: 'Record a message for someone who is unavailable',
-            parameters: {
-              type: 'object',
-              properties: {
-                for_person: { type: 'string', description: 'Who the message is for' },
-                message: { type: 'string', description: 'The message content' },
-                callback_number: { type: 'string', description: 'Number to call back' },
-                urgency: { type: 'string', enum: ['low', 'normal', 'high', 'urgent'] },
-              },
-              required: ['message'],
-            },
-          },
-          {
-            type: 'function',
-            name: 'create_ticket',
-            description: 'Create a support ticket or task for follow-up',
-            parameters: {
-              type: 'object',
-              properties: {
-                title: { type: 'string', description: 'Short title for the ticket' },
-                description: { type: 'string', description: 'Detailed description of the issue' },
-                priority: { type: 'string', enum: ['low', 'medium', 'high', 'critical'] },
-                category: { type: 'string', enum: ['support', 'billing', 'sales', 'general'] },
-              },
-              required: ['title', 'description'],
-            },
-          },
-          {
-            type: 'function',
-            name: 'lookup_info',
-            description: 'Look up business information like hours, pricing, or availability',
-            parameters: {
-              type: 'object',
-              properties: {
-                query: { type: 'string', description: 'What information to look up' },
-              },
-              required: ['query'],
-            },
-          },
-        ],
+        temperature: 0.8,
+        tools,
       },
     }));
+
+    console.log(`[Voice Bridge] Agent ${agent.dna.name} initialized with ${tools.length} tools, ${agent.skills.length} skills`);
   });
 
   openaiWs.on('message', (data: Buffer) => {
@@ -258,12 +212,14 @@ async function connectToOpenAI(session: MediaStreamSession): Promise<void> {
           break;
 
         case 'response.audio_transcript.done':
-          console.log(`[Voice Bridge] AI said: ${msg.transcript?.substring(0, 80)}...`);
+          if (msg.transcript) {
+            session.agent.addTurn('assistant', msg.transcript);
+            console.log(`[Voice Bridge] ${session.agent.dna.name} said: ${msg.transcript.substring(0, 80)}...`);
+          }
           break;
 
         case 'input_audio_buffer.speech_started':
           console.log('[Voice Bridge] User started speaking');
-          // Clear any queued AI audio (barge-in / interruption)
           if (session.twilioWs.readyState === WS.OPEN) {
             session.twilioWs.send(JSON.stringify({
               event: 'clear',
@@ -273,12 +229,18 @@ async function connectToOpenAI(session: MediaStreamSession): Promise<void> {
           break;
 
         case 'conversation.item.input_audio_transcription.completed':
-          console.log(`[Voice Bridge] User said: ${msg.transcript?.substring(0, 80)}...`);
+          if (msg.transcript) {
+            session.agent.addTurn('user', msg.transcript);
+            console.log(`[Voice Bridge] Caller said: ${msg.transcript.substring(0, 80)}...`);
+
+            if (session.agent.memory.working.escalationRisk > 60) {
+              console.log(`[Voice Bridge] ⚠ Escalation risk: ${session.agent.memory.working.escalationRisk}%`);
+            }
+          }
           break;
 
         case 'response.function_call_arguments.done':
-          // Handle tool calls from the AI
-          handleToolCall(session, msg.name, msg.arguments);
+          handleToolCall(session, msg.name, msg.call_id, msg.arguments);
           break;
 
         case 'error':
@@ -299,73 +261,56 @@ async function connectToOpenAI(session: MediaStreamSession): Promise<void> {
   });
 }
 
-/**
- * Handle tool/function calls from the AI during conversation
- */
 async function handleToolCall(
   session: MediaStreamSession,
   functionName: string,
+  callId: string,
   argsJson: string
 ): Promise<void> {
-  let args: any;
-  try {
-    args = JSON.parse(argsJson);
-  } catch {
-    args = {};
-  }
+  const result = await session.agent.handleToolCall(functionName, argsJson);
 
-  console.log(`[Voice Bridge] Tool call: ${functionName}`, args);
-
-  let result: string;
-
-  switch (functionName) {
-    case 'transfer_call':
-      result = `Call transfer initiated to ${args.department}. Reason: ${args.reason || 'caller request'}`;
-      // TODO: Actually initiate Twilio call transfer via REST API
-      break;
-
-    case 'take_message':
-      result = `Message recorded for ${args.for_person || 'the team'}: "${args.message}". Callback: ${args.callback_number || 'not provided'}. Urgency: ${args.urgency || 'normal'}.`;
-      // TODO: Persist message to database
-      break;
-
-    case 'create_ticket':
-      result = `Ticket created: "${args.title}" (${args.priority || 'medium'} priority, ${args.category || 'general'} category). Description: ${args.description}`;
-      // TODO: Create ticket via API
-      break;
-
-    case 'lookup_info':
-      result = `Looking up: ${args.query}. Our business hours are Monday-Friday 9am-6pm EST. For specific pricing or availability, a team member will follow up.`;
-      // TODO: Query actual knowledge base
-      break;
-
-    default:
-      result = `Function ${functionName} completed.`;
-  }
-
-  // Send tool result back to OpenAI so it can respond to the caller
   if (session.openaiWs?.readyState === WS.OPEN) {
     session.openaiWs.send(JSON.stringify({
       type: 'conversation.item.create',
       item: {
         type: 'function_call_output',
-        call_id: functionName,
+        call_id: callId || functionName,
         output: result,
       },
     }));
 
-    // Trigger AI to respond with the result
     session.openaiWs.send(JSON.stringify({
       type: 'response.create',
     }));
   }
 }
 
-function cleanupSession(session: MediaStreamSession | null): void {
+async function cleanupSession(session: MediaStreamSession | null): Promise<void> {
   if (!session) return;
 
+  const agent = session.agent;
   const duration = Math.round((Date.now() - session.startTime) / 1000);
-  console.log(`[Voice Bridge] Cleaning up session ${session.streamSid}, duration: ${duration}s`);
+  const turnCount = agent.memory.working.turnCount;
+
+  console.log(`[Voice Bridge] Cleaning up session ${session.streamSid} — ${agent.dna.name} (${agent.dna.role}), ${turnCount} turns, ${duration}s`);
+
+  await agent.saveConversationState();
+
+  const callerPhone = agent.memory.longTerm.callerPhone || 'unknown';
+  const toolsUsed = [...new Set(agent.memory.working.toolResults.map(t => t.tool))];
+
+  if (turnCount === 0 || duration < 5) {
+    notifyMissedCall(callerPhone, agent.memory.longTerm.callerName || undefined).catch(() => {});
+  } else {
+    notifyCallSummary(
+      agent.dna.name,
+      callerPhone,
+      turnCount,
+      duration,
+      agent.memory.shortTerm.sentiment,
+      toolsUsed
+    ).catch(() => {});
+  }
 
   if (session.openaiWs) {
     session.openaiWs.close();
@@ -385,12 +330,22 @@ export function getVoiceSessionDetails(): Array<{
   streamSid: string;
   callSid: string;
   persona: string;
+  agentName: string;
   durationSec: number;
+  turnCount: number;
+  sentiment: string;
+  escalationRisk: number;
+  toolsUsed: string[];
 }> {
   return Array.from(activeSessions.values()).map(s => ({
     streamSid: s.streamSid,
     callSid: s.callSid,
     persona: s.persona,
+    agentName: s.agent.dna.name,
     durationSec: Math.round((Date.now() - s.startTime) / 1000),
+    turnCount: s.agent.memory.working.turnCount,
+    sentiment: s.agent.memory.shortTerm.sentiment,
+    escalationRisk: s.agent.memory.working.escalationRisk,
+    toolsUsed: [...new Set(s.agent.memory.working.toolResults.map(t => t.tool))],
   }));
 }

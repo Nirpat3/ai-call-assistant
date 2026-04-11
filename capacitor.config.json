@@ -1,0 +1,36 @@
+{
+  "appId": "com.aicallassistant.app",
+  "appName": "AI Call Assistant",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "Contacts": {
+      "permissions": ["contacts"]
+    },
+    "Device": {},
+    "StatusBar": {
+      "style": "light",
+      "backgroundColor": "#3b82f6"
+    },
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#3b82f6",
+      "showSpinner": false
+    },
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  },
+  "ios": {
+    "scheme": "AI Call Assistant",
+    "contentInset": "automatic",
+    "limitsNavigationsToAppBoundDomains": true
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": false
+  }
+}

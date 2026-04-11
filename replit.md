@@ -18,6 +18,36 @@ Key features include:
 - **Analytics and Reporting**: Real-time dashboards, AI performance analytics, business intelligence, and custom reports.
 - **Todo App**: iPhone Reminders-style task management with categories, notes, due dates, and reminders.
 
+## Recent Changes (April 7, 2026)
+- **Full Agentic Anatomy System** (`server/services/agent-anatomy.ts`): Complete agent framework giving every voice conversation agent memory, skills, DNA, and full tool access
+  - **Agent DNA**: Each agent has identity, personality traits, values, communication style, emotional range, quirks, greeting/signoff
+  - **3-Layer Memory**: Short-term (conversation turns, intent, entities, sentiment, topics), Long-term (caller history, VIP status, previous call summaries), Working (tool results, knowledge cache, escalation risk)
+  - **Skills Registry**: Role-specific skills with trigger patterns — receptionist (5 skills), sales (4), support (4), shre (3), ellie (3), assistant (5)
+  - **8 Tools per Agent**: lookup_info, transfer_call, take_message, create_ticket, search_contacts, get_call_stats, schedule_callback, create_todo
+  - **Caller Context Loading**: Auto-loads caller name, VIP status, previous calls, and last call summary from database on connect
+  - **Entity Extraction**: Auto-detects names, phone numbers, emails, reference IDs from caller speech
+  - **Sentiment Analysis**: Tracks positive/neutral/negative/frustrated states to adjust agent behavior
+  - **Escalation Risk Scoring**: Dynamic 0-100% risk based on sentiment + turn count + confidence history
+  - **Dynamic System Prompts**: Agent builds its own prompt from DNA + memory + knowledge + emotional awareness
+  - **API Endpoint**: `GET /api/agents/anatomy` returns full DNA, skills, tools, memory structure for all 6 agents
+  - Both Twilio phone calls and browser WebRTC sessions use the full agent anatomy
+  - Valid OpenAI Realtime voices: alloy, ash, ballad, coral, echo, sage, shimmer, verse, marin, cedar
+
+- **SMS Alerts for Missed Calls & Messages** (`server/services/sms-alerts.ts`): Twilio texts to +17066762576
+  - Missed calls: SMS sent when call disconnects < 5s or 0 turns, or when transfer/forward fails (busy/no-answer/failed)
+  - Voicemails: SMS with caller ID and transcription preview when voicemail recording is received
+  - Messages: SMS when AI agent takes a message during a call (via `take_message` tool)
+  - Tickets: SMS when AI agent creates a support ticket during a call (via `create_ticket` tool)
+  - Call summaries: SMS after every completed AI call with agent name, duration, turns, sentiment, tools used
+  - Wired into: voice bridge cleanup, agent anatomy tool handlers, Twilio transfer-status, forward-status, recording webhooks
+
+- **Realtime Voice Engine + Push Notifications** (pulled from GitHub):
+  - Twilio Media Streams ↔ OpenAI Realtime bridge for full-duplex phone calls (`server/services/realtime-voice-bridge.ts`)
+  - Browser `VoiceButton` component with WebRTC for in-app voice conversations (`client/src/components/VoiceButton.tsx`)
+  - 6 agent personas: receptionist (Sarah), sales (Marcus), support (Alex), shre (CEO), ellie (President), assistant (Jamie)
+  - Web Push notifications via VAPID keys, Capacitor native app support
+  - New tables: `leads`, `demos`, `push_subscriptions`, `sales_activities`, `sales_integrations`
+
 ## Recent Changes (March 31, 2026)
 - **NVIDIA PersonaPlex Voice Provider Integration**: Added PersonaPlex as a 5th voice provider
   - New `NvidiaPersonaPlexProvider` class in `server/services/voice-provider.ts` with TTS synthesis and full-duplex session creation

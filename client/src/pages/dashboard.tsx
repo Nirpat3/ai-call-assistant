@@ -40,24 +40,26 @@ export default function Dashboard() {
       subtitle="AI Call Management Dashboard"
     >
       {/* Enhanced iOS 16 Header */}
-      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 shadow-lg rounded-3xl mb-8">
-        <CardContent className="p-8">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="p-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl shadow-lg">
-                <TrendingUp className="w-8 h-8 text-white" />
+      <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200 shadow-lg rounded-2xl sm:rounded-3xl mb-6 sm:mb-8">
+        <CardContent className="p-4 sm:p-6 lg:p-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="p-3 sm:p-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl sm:rounded-3xl shadow-lg">
+                <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Good morning!</h1>
-                <p className="text-gray-600 mt-1 text-lg">Welcome back to your AI Call Assistant</p>
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Good morning!</h1>
+                <p className="text-gray-600 mt-0.5 sm:mt-1 text-sm sm:text-base lg:text-lg">Welcome back to your AI Call Assistant</p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              <WeatherWidget />
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="hidden sm:block">
+                <WeatherWidget />
+              </div>
               <div className="flex items-center space-x-2">
-                <Calendar className="w-5 h-5 text-gray-500" />
+                <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
                 <Select value={dateFilter} onValueChange={setDateFilter}>
-                  <SelectTrigger className="w-32 rounded-xl">
+                  <SelectTrigger className="w-28 sm:w-32 rounded-xl text-sm">
                     <SelectValue placeholder="Period" />
                   </SelectTrigger>
                   <SelectContent>

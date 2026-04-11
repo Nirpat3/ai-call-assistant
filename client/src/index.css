@@ -100,7 +100,6 @@ main {
 
 /* Responsive Layout Improvements */
 @media (max-width: 768px) {
-  /* Mobile-first approach */
   .sidebar-content {
     height: auto;
     max-height: 100vh;
@@ -110,46 +109,16 @@ main {
     max-height: calc(100vh - 200px);
   }
   
-  /* Ensure mobile content doesn't overflow */
   main {
     padding-left: 0 !important;
   }
   
-  /* Better mobile spacing */
   .mobile-block-layout {
     padding: 1rem;
-  }
-  
-  /* Responsive cards and components */
-  .grid {
-    grid-template-columns: 1fr !important;
-    gap: 1rem;
-  }
-  
-  .grid-cols-2 {
-    grid-template-columns: 1fr !important;
-  }
-  
-  .grid-cols-3 {
-    grid-template-columns: 1fr !important;
-  }
-  
-  .grid-cols-4 {
-    grid-template-columns: 1fr !important;
   }
 }
 
 @media (max-width: 640px) {
-  /* Extra small screens */
-  .text-2xl {
-    font-size: 1.25rem !important;
-  }
-  
-  .text-lg {
-    font-size: 1rem !important;
-  }
-  
-  /* Adjust padding for very small screens */
   .px-4 {
     padding-left: 0.75rem !important;
     padding-right: 0.75rem !important;
@@ -157,16 +126,10 @@ main {
 }
 
 @media (min-width: 769px) and (max-width: 1024px) {
-  /* Tablet layout */
-  .grid-cols-4 {
-    grid-template-columns: repeat(2, 1fr) !important;
-  }
-  
   .sidebar-content {
     padding: 1rem;
   }
   
-  /* Better tablet spacing */
   main {
     padding-left: 18rem !important;
   }

@@ -102,19 +102,19 @@ function CallProfile({ call, onClose }: CallProfileProps) {
   return (
     <div className="space-y-6">
       <Breadcrumb />
-      <div className="flex items-center justify-between border-b pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b pb-4 gap-3">
         <div className="flex items-center space-x-3">
-          <div className="bg-blue-100 p-3 rounded-full">
-            <Phone className="h-6 w-6 text-blue-600" />
+          <div className="bg-blue-100 p-2.5 sm:p-3 rounded-full shrink-0">
+            <Phone className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
           </div>
-          <div>
-            <h2 className="text-xl font-semibold">{call.callerName || 'Unknown Caller'}</h2>
-            <p className="text-gray-600">{call.from}</p>
+          <div className="min-w-0">
+            <h2 className="text-lg sm:text-xl font-semibold truncate">{call.callerName || 'Unknown Caller'}</h2>
+            <p className="text-sm sm:text-base text-gray-600">{call.from}</p>
           </div>
         </div>
-        <div className="text-right">
+        <div className="text-left sm:text-right flex sm:block items-center gap-2">
           <Badge className={getStatusColor(call.status)}>{call.status}</Badge>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-xs sm:text-sm text-gray-500 sm:mt-1">
             {call.startTime ? formatUtcToLocal(call.startTime, 'medium') : 'Unknown time'}
           </p>
         </div>
@@ -517,12 +517,12 @@ export default function CallLog() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Call Log</h1>
-          <p className="text-gray-600">Review all call history and details</p>
+          <h1 className="text-xl sm:text-2xl font-bold">Call Log</h1>
+          <p className="text-sm sm:text-base text-gray-600">Review all call history and details</p>
         </div>
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2 sm:space-x-4">
           {/* Live Call Indicator */}
           {liveCalls.length > 0 && (
             <div className="relative">
@@ -602,9 +602,9 @@ export default function CallLog() {
               const StatusIcon = contactStatus.icon;
 
               return (
-                <div key={call.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer" onClick={() => setSelectedCall(call)}>
-                  <div className="flex items-center space-x-3">
-                    <div className="bg-blue-100 p-2 rounded-full relative">
+                <div key={call.id} className="flex items-center justify-between p-2.5 sm:p-3 border rounded-lg hover:bg-gray-50 cursor-pointer gap-2" onClick={() => setSelectedCall(call)}>
+                  <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+                    <div className="bg-blue-100 p-2 rounded-full relative shrink-0">
                       <Phone className="h-4 w-4 text-blue-600" />
                       {hasVoicemail && (
                         <div className="absolute -top-1 -right-1 bg-red-500 rounded-full p-1">
@@ -612,24 +612,24 @@ export default function CallLog() {
                         </div>
                       )}
                     </div>
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <p className="font-medium text-sm">
+                    <div className="min-w-0">
+                      <div className="flex items-center space-x-1 sm:space-x-2 flex-wrap">
+                        <p className="font-medium text-xs sm:text-sm truncate">
                           {contact ? `${contact.firstName} ${contact.lastName}` : (call.callerName || 'Unknown Caller')}
                         </p>
-                        <Badge className={contactStatus.color} variant="secondary">
-                          <StatusIcon className="h-3 w-3 mr-1" />
-                          {contactStatus.label}
+                        <Badge className={`${contactStatus.color} text-[10px] sm:text-xs`} variant="secondary">
+                          <StatusIcon className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5 sm:mr-1" />
+                          <span className="hidden sm:inline">{contactStatus.label}</span>
                         </Badge>
                       </div>
-                      <p className="text-xs text-gray-600">{call.from}</p>
+                      <p className="text-[11px] sm:text-xs text-gray-600 truncate">{call.from}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs text-gray-600">
+                  <div className="text-right shrink-0">
+                    <p className="text-[11px] sm:text-xs text-gray-600 whitespace-nowrap">
                       {call.startTime ? formatUtcToLocal(call.startTime, 'medium') : 'Unknown time'}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-[11px] sm:text-xs text-gray-500">
                       {call.duration ? formatDuration(call.duration) : "N/A"}
                     </p>
                   </div>
@@ -651,10 +651,10 @@ export default function CallLog() {
           />
         </div>
         
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Filter by status" />
+            <SelectTrigger className="w-[120px] sm:w-40 text-xs sm:text-sm">
+              <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
@@ -667,8 +667,8 @@ export default function CallLog() {
           </Select>
 
           <Select value={dateFilter} onValueChange={setDateFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Filter by date" />
+            <SelectTrigger className="w-[120px] sm:w-40 text-xs sm:text-sm">
+              <SelectValue placeholder="Date" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Time</SelectItem>

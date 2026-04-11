@@ -44,6 +44,7 @@ import {
   getActiveVoiceSessions,
   getVoiceSessionDetails,
   AGENT_PERSONAS,
+  PERSONA_VOICE_MAP,
 } from "./services/realtime-voice-bridge";
 import { aiCommandEngineer } from "./ai-command-engineer";
 import { ticketManagementService } from "./ticket-management";
@@ -128,42 +129,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.send(twiml.toString());
   });
 
-  // Transfer status endpoint to handle transfer completion
-  app.post('/api/twilio/transfer-status', (req, res) => {
+  app.post('/api/twilio/transfer-status', async (req, res) => {
     const twiml = new twilio.twiml.VoiceResponse();
     const dialCallStatus = req.body.DialCallStatus;
+    const callerNumber = req.body.From || req.body.Caller || 'Unknown';
     
     console.log('Transfer status:', dialCallStatus);
     
     switch (dialCallStatus) {
       case 'completed':
-        // Transfer was successful - no action needed
-        break;
       case 'answered':
-        // Call was answered - no action needed
         break;
       case 'busy':
-        twiml.say({
-          voice: 'alice',
-          language: 'en-US'
-        }, 'The person you are trying to reach is currently busy. Please try again later or leave a voicemail.');
+        twiml.say({ voice: 'alice', language: 'en-US' }, 'The person you are trying to reach is currently busy. Please try again later or leave a voicemail.');
         twiml.redirect('/api/twilio/voicemail');
+        import('./services/sms-alerts').then(m => m.notifyMissedCall(callerNumber)).catch(() => {});
         break;
       case 'no-answer':
-        twiml.say({
-          voice: 'alice',
-          language: 'en-US'
-        }, 'Sorry, no one is available to take your call right now. You can leave a voicemail and we will get back to you.');
+        twiml.say({ voice: 'alice', language: 'en-US' }, 'Sorry, no one is available to take your call right now. You can leave a voicemail and we will get back to you.');
         twiml.redirect('/api/twilio/voicemail');
+        import('./services/sms-alerts').then(m => m.notifyMissedCall(callerNumber)).catch(() => {});
         break;
       case 'failed':
       case 'canceled':
       default:
-        twiml.say({
-          voice: 'alice',
-          language: 'en-US'
-        }, 'I apologize, but we were unable to complete the transfer. Please try calling back or leave a voicemail.');
+        twiml.say({ voice: 'alice', language: 'en-US' }, 'I apologize, but we were unable to complete the transfer. Please try calling back or leave a voicemail.');
         twiml.redirect('/api/twilio/voicemail');
+        import('./services/sms-alerts').then(m => m.notifyMissedCall(callerNumber)).catch(() => {});
         break;
     }
     
@@ -171,28 +163,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.send(twiml.toString());
   });
 
-  // Forward status endpoint for auto-forwarding
-  app.post('/api/twilio/forward-status', (req, res) => {
+  app.post('/api/twilio/forward-status', async (req, res) => {
     const twiml = new twilio.twiml.VoiceResponse();
     const dialCallStatus = req.body.DialCallStatus;
+    const callerNumber = req.body.From || req.body.Caller || 'Unknown';
     
     console.log('Forward status:', dialCallStatus);
     
     switch (dialCallStatus) {
       case 'completed':
       case 'answered':
-        // Forward was successful - no action needed
         break;
       case 'busy':
       case 'no-answer':
       case 'failed':
       case 'canceled':
       default:
-        twiml.say({
-          voice: 'alice',
-          language: 'en-US'
-        }, 'We are currently unavailable. Please leave a detailed message and we will return your call as soon as possible.');
+        twiml.say({ voice: 'alice', language: 'en-US' }, 'We are currently unavailable. Please leave a detailed message and we will return your call as soon as possible.');
         twiml.redirect('/api/twilio/voicemail');
+        import('./services/sms-alerts').then(m => m.notifyMissedCall(callerNumber)).catch(() => {});
         break;
     }
     
@@ -2378,12 +2367,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Broadcast voicemail update to dashboard
       broadcast({ type: 'voicemail-received', data: webhookData });
 
-      // Send voicemail push notification
       const callerNumber = webhookData.From || webhookData.Caller || 'Unknown';
       const duration = parseInt(webhookData.RecordingDuration || '0', 10);
+
       sendVoicemailPush(callerNumber, duration, webhookData.TranscriptionText).catch(err =>
         console.error('[Push] Voicemail notification failed:', err)
       );
+
+      const { notifyNewVoicemail } = await import('./services/sms-alerts');
+      notifyNewVoicemail(callerNumber, webhookData.TranscriptionText || `Voicemail (${duration}s) — no transcription available`).catch(() => {});
       
       res.type('text/xml');
       res.send(twiml);
@@ -4906,17 +4898,14 @@ Respond in JSON format:
       const protocol = host.includes('replit') || host.includes('https') ? 'wss' : 'wss';
       const wsUrl = `${protocol}://${host}/media-stream?persona=${persona}`;
 
-      // TwiML: Connect call to our Media Stream WebSocket → OpenAI Realtime
       const twiml = new twilio.twiml.VoiceResponse();
 
-      // Brief greeting before AI takes over
       twiml.say({
-        voice: 'alice',
+        voice: 'Polly.Joanna',
         language: 'en-US',
-      }, 'Connecting you now.');
+      }, 'One moment please.');
 
-      // Pause briefly, then connect to Media Stream
-      twiml.pause({ length: 1 });
+      twiml.pause({ length: 0 });
 
       const connect = twiml.connect();
       connect.stream({
@@ -4949,12 +4938,70 @@ Respond in JSON format:
   /** Get available AI voice personas */
   app.get('/api/voice/personas', (_req, res) => {
     res.json(
-      Object.entries(AGENT_PERSONAS).map(([id, prompt]) => ({
-        id,
-        name: id.charAt(0).toUpperCase() + id.slice(1),
-        promptPreview: prompt.substring(0, 100) + '...',
-      }))
+      Object.entries(AGENT_PERSONAS).map(([id, prompt]) => {
+        const voiceConfig = PERSONA_VOICE_MAP[id];
+        return {
+          id,
+          name: id.charAt(0).toUpperCase() + id.slice(1),
+          promptPreview: prompt.substring(0, 100) + '...',
+          voice: voiceConfig ? {
+            openai: voiceConfig.openaiVoice,
+            personaplex: voiceConfig.personaplexVoice,
+            gender: voiceConfig.gender,
+          } : undefined,
+        };
+      })
     );
+  });
+
+  app.get('/api/agents/anatomy', async (_req, res) => {
+    try {
+      const { getAgentDNA, getAgentSkills } = await import('./services/agent-anatomy');
+      const personas = ['receptionist', 'sales', 'support', 'shre', 'ellie', 'assistant'];
+
+      const agents = personas.map(p => {
+        const dna = getAgentDNA(p);
+        const skills = getAgentSkills(p);
+        const voiceConfig = PERSONA_VOICE_MAP[p];
+        return {
+          persona: p,
+          dna: {
+            name: dna.name,
+            role: dna.role,
+            identity: dna.identity,
+            personality: dna.personality,
+            values: dna.values,
+            communicationStyle: dna.communicationStyle,
+            emotionalRange: dna.emotionalRange,
+            quirks: dna.quirks,
+            greeting: dna.greeting,
+            signoff: dna.signoff,
+          },
+          skills: skills.map(s => ({
+            name: s.name,
+            description: s.description,
+            triggerPatterns: s.triggerPatterns,
+            toolName: s.toolName,
+          })),
+          voice: voiceConfig ? {
+            openai: voiceConfig.openaiVoice,
+            personaplex: voiceConfig.personaplexVoice,
+            gender: voiceConfig.gender,
+          } : undefined,
+          tools: ['lookup_info', 'transfer_call', 'take_message', 'create_ticket', 'search_contacts', 'get_call_stats', 'schedule_callback', 'create_todo'],
+          memory: {
+            shortTerm: 'Conversation turns, intent tracking, entity extraction, sentiment analysis',
+            longTerm: 'Caller history, VIP status, previous call summaries, preferences',
+            working: 'Active tool results, knowledge base cache, escalation risk scoring',
+          },
+        };
+      });
+
+      res.json(agents);
+    } catch (error) {
+      console.error('[Agents] Failed to get agent anatomy:', error);
+      res.status(500).json({ error: 'Failed to load agent anatomy' });
+    }
   });
 
   /** Browser-based voice: get a session token for direct WebRTC (OpenAI Realtime) */
@@ -4967,7 +5014,12 @@ Respond in JSON format:
 
       const { persona = 'assistant' } = req.body;
 
-      // Request an ephemeral token from OpenAI for client-side WebRTC
+      const voiceConfig = PERSONA_VOICE_MAP[persona] || PERSONA_VOICE_MAP.assistant;
+
+      const { createAgent } = await import('./services/agent-anatomy');
+      const browserAgent = createAgent(persona, `browser-${Date.now()}`);
+      const agentPrompt = browserAgent.buildSystemPrompt();
+
       const tokenRes = await fetch('https://api.openai.com/v1/realtime/sessions', {
         method: 'POST',
         headers: {
@@ -4976,12 +5028,14 @@ Respond in JSON format:
         },
         body: JSON.stringify({
           model: 'gpt-4o-realtime-preview-2024-12-17',
-          voice: 'alloy',
-          instructions: AGENT_PERSONAS[persona] || AGENT_PERSONAS.assistant,
+          voice: voiceConfig.openaiVoice,
+          instructions: agentPrompt,
           modalities: ['text', 'audio'],
+          temperature: 0.8,
           turn_detection: {
             type: 'server_vad',
             threshold: 0.5,
+            prefix_padding_ms: 300,
             silence_duration_ms: 500,
           },
         }),

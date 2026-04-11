@@ -258,25 +258,25 @@ export default function CallManagement() {
         </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="greeting" className="flex items-center space-x-2">
-            <MessageSquare className="h-4 w-4" />
-            <span>AI Assistant</span>
+        <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 h-auto gap-1">
+          <TabsTrigger value="greeting" className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-2 py-2">
+            <MessageSquare className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+            <span className="truncate">Assistant</span>
           </TabsTrigger>
-          <TabsTrigger value="training" className="flex items-center space-x-2">
-            <Bot className="h-4 w-4" />
-            <span>AI Training</span>
+          <TabsTrigger value="training" className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-2 py-2">
+            <Bot className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+            <span className="truncate">Training</span>
           </TabsTrigger>
-          <TabsTrigger value="routing" className="flex items-center space-x-2">
-            <Phone className="h-4 w-4" />
-            <span>Call Routing</span>
+          <TabsTrigger value="routing" className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-2 py-2">
+            <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+            <span className="truncate">Routing</span>
           </TabsTrigger>
-          <TabsTrigger value="hours" className="flex items-center space-x-2">
-            <Clock className="h-4 w-4" />
-            <span>Business Hours</span>
+          <TabsTrigger value="hours" className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-2 py-2">
+            <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+            <span className="truncate">Hours</span>
           </TabsTrigger>
-          <TabsTrigger value="advanced" className="flex items-center space-x-2">
-            <Settings className="h-4 w-4" />
+          <TabsTrigger value="advanced" className="flex items-center space-x-1 sm:space-x-2 text-xs sm:text-sm px-2 py-2 col-span-3 sm:col-span-1">
+            <Settings className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
             <span>Advanced</span>
           </TabsTrigger>
         </TabsList>

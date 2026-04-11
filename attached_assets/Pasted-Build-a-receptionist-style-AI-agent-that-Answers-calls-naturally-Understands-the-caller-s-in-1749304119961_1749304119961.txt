@@ -1,0 +1,120 @@
+Build a receptionist-style AI agent that:
+
+	• Answers calls naturally
+	• Understands the caller’s intent
+	• Responds conversationally (like a real human assistant)
+	• Handles or routes RapidRMS-related inquiries
+	• Politely declines irrelevant or sales calls
+	• Collects messages when needed
+
+
+
+🧩 Architecture Overview
+
+
+1. 
+Voice Experience Layer
+
+Use Text-to-Speech (TTS) and Speech-to-Text (STT) systems:
+
+	• TTS: Choose a neural voice that sounds warm, neutral, and businesslike. Best-in-class tools:
+		○ Microsoft Azure Neural TTS
+		○ ElevenLabs
+		○ Play.ht
+	• STT: High-accuracy transcription with real-time punctuation and speaker sentiment
+		○ Google Speech-to-Text
+		○ Deepgram
+		○ Whisper (OpenAI)
+
+
+
+2. 
+Core Conversation Engine (LLM)
+
+Use an LLM with real-time intent understanding and small talk handling. You have two good options:
+
+
+✅ Recommended Models:
+
+	• OpenAI GPT-4 Turbo (Best quality and reasoning at low latency)
+	• Anthropic Claude 3 (Natural conversational style)
+	• Mistral + fine-tuned intent classification (lower cost, more custom logic required)
+
+
+
+3. 
+Flow Design: Human-Like Conversation
+
+
+✅ Greeting Flow (based on configuration):
+
+“Hi, thanks for calling RapidRMS! This is [AI Name], how can I help you today?”
+
+
+🧠 Real-Time Intent Recognition:
+
+	• Match caller’s speech to a set of intents:
+		○ Sales Inquiry
+		○ Support Request
+		○ General Info
+		○ Irrelevant (e.g. marketing, vendor pitch, spam)
+
+
+🔄 Intent Routing Logic:
+
+	• Sales/Support → Route or collect details
+	• Not about RapidRMS → Politely decline
+	• Unclear → Ask gentle follow-up:“Just to make sure I connect you correctly—could you tell me a bit more about what you need help with?”
+
+
+
+4. 
+Naturalness Enhancements
+
+To sound more human:
+
+	• Variable delay in responses (simulate typing or thinking)
+	• Use casual phrases and acknowledgements“Sure, let me check that for you.”“Got it. One sec while I pull that up.”
+	• Add empathetic responses:“Ah, I understand. Let me get you to the right person.”
+
+
+
+5. 
+Configuration Options for You
+
+You should have a control panel to configure:
+
+	• Greeting type: Friendly / Formal / Custom
+	• Available hours (AI can say “They’re not available right now”)
+	• Department routing: Support, Sales, Billing
+	• Trigger phrases for redirection or message-taking
+	• Opt-in voicemail capture (audio + transcription)
+
+
+Intent Detection Example Prompts for LLM
+
+You are an AI receptionist for RapidRMS. Listen to the caller and:
+1. Determine if the call is about RapidRMS (sales, support, or general inquiry).
+2. If yes, gather intent and either route or collect key information.
+3. If not about RapidRMS, politely decline and end the call or take a message.
+
+Always sound helpful and conversational.
+
+
+Handling Non-Relevant Calls
+
+Example fallback:
+
+“Thanks for reaching out. At the moment, we’re only handling inquiries related to RapidRMS. Can I take a message for the team?”
+
+Or:
+
+“We’re not currently looking for additional services, but I’ll pass this along if relevant.”
+
+Admin Configuration	Web Dashboard w/ Routing Rules + Greeting Editor
+
+
+
+
+
+

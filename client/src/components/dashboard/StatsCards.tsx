@@ -153,21 +153,21 @@ export default function StatsCards({ dateFilter }: StatsCardsProps) {
       {/* Core Metrics */}
       <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Core Metrics</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
           {coreStats.map((stat, index) => (
             <Card 
               key={index} 
-              className="p-6 shadow-sm border border-gray-100 cursor-pointer hover:shadow-lg transition-shadow duration-200"
+              className="p-3 sm:p-4 lg:p-6 shadow-sm border border-gray-100 cursor-pointer hover:shadow-lg transition-shadow duration-200"
               onClick={stat.onClick}
             >
               <CardContent className="p-0">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                    <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">{stat.title}</p>
+                    <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{stat.value}</p>
                   </div>
-                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${colorClasses[stat.color as keyof typeof colorClasses]}`}>
-                    <i className={`${stat.icon} text-xl`}></i>
+                  <div className={`w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 rounded-lg flex items-center justify-center shrink-0 ${colorClasses[stat.color as keyof typeof colorClasses]}`}>
+                    <i className={`${stat.icon} text-sm sm:text-lg lg:text-xl`}></i>
                   </div>
                 </div>
                 {(stat.trend || stat.subtitle) && (
@@ -194,20 +194,20 @@ export default function StatsCards({ dateFilter }: StatsCardsProps) {
       <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-2">Department Routing</h3>
         <p className="text-sm text-gray-600 mb-4">Click on any department to view calls routed to that category</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
           {routingStats.map((stat, index) => (
             <Card 
               key={index} 
-              className="p-4 shadow-sm border border-gray-100 cursor-pointer hover:shadow-lg transition-shadow duration-200"
+              className="p-3 sm:p-4 shadow-sm border border-gray-100 cursor-pointer hover:shadow-lg transition-shadow duration-200"
               onClick={stat.onClick}
             >
               <CardContent className="p-0">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                    <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">{stat.title}</p>
+                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{stat.value}</p>
                   </div>
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${colorClasses[stat.color as keyof typeof colorClasses]}`}>
+                  <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center shrink-0 ${colorClasses[stat.color as keyof typeof colorClasses]}`}>
                     <i className={`${stat.icon} text-lg`}></i>
                   </div>
                 </div>
@@ -226,21 +226,21 @@ export default function StatsCards({ dateFilter }: StatsCardsProps) {
       {performanceStats.length > 0 && (
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Performance</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
             {performanceStats.map((stat, index) => (
               <Card 
                 key={index} 
-                className="p-6 shadow-sm border border-gray-100 cursor-pointer hover:shadow-lg transition-shadow duration-200"
+                className="p-3 sm:p-4 lg:p-6 shadow-sm border border-gray-100 cursor-pointer hover:shadow-lg transition-shadow duration-200"
                 onClick={stat.onClick}
               >
                 <CardContent className="p-0">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                      <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs sm:text-sm font-medium text-gray-600 truncate">{stat.title}</p>
+                      <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">{stat.value}</p>
                     </div>
-                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${colorClasses[stat.color as keyof typeof colorClasses]}`}>
-                      <i className={`${stat.icon} text-xl`}></i>
+                    <div className={`w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 rounded-lg flex items-center justify-center shrink-0 ${colorClasses[stat.color as keyof typeof colorClasses]}`}>
+                      <i className={`${stat.icon} text-sm sm:text-lg lg:text-xl`}></i>
                     </div>
                   </div>
                   {(stat.trend || stat.subtitle) && (
