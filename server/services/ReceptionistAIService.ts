@@ -34,6 +34,13 @@ export interface AIResponse {
   shouldEnd?: boolean;
 }
 
+// Per-number persona config — maps the "To" phone number to an identity
+// Unknown numbers default to RapidRMS company persona
+const PERSONA_BY_NUMBER: Record<string, { companyName: string; aiName: string; isPersonal: boolean; ownerName?: string }> = {
+  '+17274362999': { companyName: '', aiName: 'Annie', isPersonal: true, ownerName: 'Nirav' }, // Personal line
+  '+18887274302': { companyName: 'RapidRMS', aiName: 'Annie', isPersonal: false },            // Company line (also handled by RC AI)
+};
+
 export class ReceptionistAIService {
   private activeConversations: Map<string, ConversationContext> = new Map();
   private companyName = "RapidRMS";
@@ -60,7 +67,16 @@ export class ReceptionistAIService {
     ]
   };
 
-  async handleIncomingCall(callSid: string, callerNumber: string, callerName?: string): Promise<AIResponse> {
+  async handleIncomingCall(callSid: string, callerNumber: string, callerName?: string, toNumber?: string): Promise<AIResponse> {
+    // Select persona based on which number was dialed
+    if (toNumber && PERSONA_BY_NUMBER[toNumber]) {
+      const p = PERSONA_BY_NUMBER[toNumber];
+      this.companyName = p.companyName;
+      this.aiName = p.aiName;
+      (this as any)._isPersonal = p.isPersonal;
+      (this as any)._ownerName = p.ownerName;
+    }
+
     const context: ConversationContext = {
       callSid,
       callerNumber,
@@ -129,12 +145,21 @@ export class ReceptionistAIService {
   private async generateGreeting(context: ConversationContext): Promise<string> {
     const timeOfDay = this.getTimeOfDay();
     const personalGreeting = context.callerName ? ` ${context.callerName}` : '';
-    
-    const greetingVariations = [
-      `Good ${timeOfDay}! Thanks for calling ${this.companyName}. This is ${this.aiName}${personalGreeting}, how can I help you today?`,
-      `Hi${personalGreeting}! You've reached ${this.companyName}. I'm ${this.aiName}, how may I assist you?`,
-      `Hello${personalGreeting}! Thanks for calling ${this.companyName}. This is ${this.aiName}, what can I do for you today?`
-    ];
+
+    const isPersonal = (this as any)._isPersonal;
+    const ownerName = (this as any)._ownerName || 'Nirav';
+
+    const greetingVariations = isPersonal
+      ? [
+          `Hi${personalGreeting}, you've reached ${ownerName}. I'm ${this.aiName}, his AI assistant. ${ownerName}'s unavailable right now — can I help you with something, or take a message?`,
+          `Hello${personalGreeting}, this is ${this.aiName}, ${ownerName}'s AI assistant. ${ownerName}'s away from the phone — how can I help?`,
+          `Hi${personalGreeting}, ${ownerName}'s AI assistant here. ${ownerName} can't come to the phone, but I'd be happy to help or pass along a message.`,
+        ]
+      : [
+          `Good ${timeOfDay}! Thanks for calling ${this.companyName}. This is ${this.aiName}${personalGreeting}, how can I help you today?`,
+          `Hi${personalGreeting}! You've reached ${this.companyName}. I'm ${this.aiName}, how may I assist you?`,
+          `Hello${personalGreeting}! Thanks for calling ${this.companyName}. This is ${this.aiName}, what can I do for you today?`,
+        ];
 
     // Use AI to make greeting more natural based on context
     try {

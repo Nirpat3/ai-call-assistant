@@ -154,14 +154,46 @@ export async function handleIncomingCall(webhookData: CallWebhookData) {
         }
       }
       
-      // Check AI configuration
+      // === NEW: Route unknown callers to the AI Receptionist for natural conversation ===
+      // (Removes old DTMF menu fallback; LLM now handles all unrouted calls.)
+      const { receptionistAI } = await import('./services/ReceptionistAIService');
+      const aiResponse = await receptionistAI.handleIncomingCall(
+        webhookData.CallSid,
+        webhookData.From,
+        contact ? `${contact.firstName} ${contact.lastName}`.trim() : webhookData.CallerName,
+        webhookData.To,
+      );
+
+      twiml.say({ voice: 'Polly.Matthew-Neural' }, aiResponse.text);
+
+      if (aiResponse.action === 'continue') {
+        twiml.gather({
+          input: ['speech'],
+          speechTimeout: '4',
+          speechModel: 'phone_call',
+          enhanced: true,
+          action: '/api/twilio/call-gather',
+          method: 'POST',
+        });
+        twiml.say({ voice: 'Polly.Matthew-Neural' }, "I didn't catch that. Are you still there?");
+        twiml.redirect('/api/twilio/call-gather');
+      } else if (aiResponse.action === 'transfer' && aiResponse.transferTo) {
+        twiml.say({ voice: 'Polly.Matthew-Neural' }, 'Please hold while I connect you.');
+        twiml.dial(aiResponse.transferTo);
+      } else {
+        twiml.hangup();
+      }
+
+      return twiml.toString();
+
+      // Legacy DTMF-menu path retained for reference (unreachable)
       const aiConfig = await storage.getAiConfig();
       console.log("AI Config loaded:", {
         useAdvancedConversation: aiConfig?.useAdvancedConversation,
         greeting: aiConfig?.greeting?.substring(0, 50) + "...",
         configExists: !!aiConfig
       });
-      
+
       // Standard AI routing with menu options
       const gather = twiml.gather({
         input: ["speech", "dtmf"],
@@ -323,7 +355,7 @@ export async function handleCallGather(webhookData: CallWebhookData & { SpeechRe
           callerId: process.env.TWILIO_PHONE_NUMBER,
           ringTone: 'us'
         });
-        salesDial.number('+1404-590-1101');
+        salesDial.number(process.env.SALES_PHONE || '+14045901101');
       } else if (result.shouldTransfer && result.transferTo === 'support-agent') {
         // Transfer to support department with immediate connection
         twiml.say({ 
@@ -341,7 +373,7 @@ export async function handleCallGather(webhookData: CallWebhookData & { SpeechRe
           callerId: process.env.TWILIO_PHONE_NUMBER,
           ringTone: 'us'
         });
-        supportDial.number('+1888-727-4302');
+        supportDial.number(process.env.SUPPORT_PHONE || '+18887274302');
       } else if (result.shouldTransfer && result.transferTo) {
         // Continue conversation with new agent
         twiml.say({ voice: 'alice' }, result.response);
@@ -380,7 +412,7 @@ export async function handleCallGather(webhookData: CallWebhookData & { SpeechRe
           method: 'POST',
           callerId: process.env.TWILIO_PHONE_NUMBER
         });
-        dial.number('+1404-590-1101');
+        dial.number(process.env.SALES_PHONE || '+14045901101');
       } else if (lowerInput.includes('support') || lowerInput.includes('help') || lowerInput.includes('problem') || lowerInput.includes('issue')) {
         twiml.say({ voice: 'alice' }, "I can help you with support. Let me transfer you to our technical support team.");
         const dial = twiml.dial({
@@ -389,7 +421,7 @@ export async function handleCallGather(webhookData: CallWebhookData & { SpeechRe
           method: 'POST',
           callerId: process.env.TWILIO_PHONE_NUMBER
         });
-        dial.number('+1888-727-4302');
+        dial.number(process.env.SUPPORT_PHONE || '+18887274302');
       } else if (lowerInput.includes('voicemail') || lowerInput.includes('message') || lowerInput.includes('leave a message')) {
         twiml.redirect("/api/twilio/voicemail");
       } else {
@@ -485,7 +517,7 @@ function handleDTMFInput(digits: string, webhookData: CallWebhookData): string {
       
     default:
       twiml.say("I didn't understand that option. Let me transfer you to someone who can help.");
-      twiml.dial("+1404-590-1101");
+      twiml.dial(process.env.SALES_PHONE || '+14045901101');
       break;
   }
   
@@ -639,13 +671,13 @@ export async function makeOutboundCall(to: string, message: string): Promise<str
     const call = await twilioClient.calls.create({
       url: `${process.env.BASE_URL}/api/twilio/outbound?message=${encodeURIComponent(message)}`,
       to,
-      from: process.env.TWILIO_PHONE_NUMBER || "+17274362999"
+      from: process.env.TWILIO_PHONE_NUMBER!
     });
 
     // Log the outbound call
     await storage.createCall({
       callSid: call.sid,
-      from: process.env.TWILIO_PHONE_NUMBER || "+17274362999",
+      from: process.env.TWILIO_PHONE_NUMBER!,
       to,
       status: "initiated",
       direction: "outbound",
