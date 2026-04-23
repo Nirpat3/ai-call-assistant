@@ -151,34 +151,17 @@ export class ReceptionistAIService {
     let greetingVariations: string[];
 
     if (isPersonal) {
-      // Time-aware personal greetings (Annie as Nirav's AI)
-      if (tc.period === 'night') {
-        greetingVariations = [
-          `Hi${personalGreeting}, this is ${this.aiName}, ${ownerName}'s AI assistant. It's late and ${ownerName} is off the clock, but if it's urgent I can pass it along — or I'll have him call you back first thing.`,
-          `Hello${personalGreeting}, ${this.aiName} here. ${ownerName} has wrapped up for the day. What's going on — I'll get a message to him right away.`,
-        ];
-      } else if (tc.period === 'weekend') {
-        greetingVariations = [
-          `Hi${personalGreeting}, this is ${this.aiName}, ${ownerName}'s AI assistant. ${ownerName}'s off for the weekend but I'm here to help — what do you need?`,
-          `Hello${personalGreeting}, ${this.aiName} here. It's the weekend so ${ownerName}'s taking time off, but I can take a message or help if you'd like.`,
-        ];
-      } else if (tc.period === 'morning') {
-        greetingVariations = [
-          `Good morning${personalGreeting}! You've reached ${ownerName}. I'm ${this.aiName}, his AI assistant — he's not at his phone yet, what can I help you with?`,
-          `Hi${personalGreeting}, this is ${this.aiName}, ${ownerName}'s AI assistant. ${ownerName}'s getting his morning started — how can I help?`,
-        ];
-      } else if (tc.period === 'evening') {
-        greetingVariations = [
-          `Hi${personalGreeting}, ${this.aiName} here — ${ownerName}'s AI assistant. ${ownerName}'s wrapping up for the day, but I can help or take a message.`,
-          `Good evening${personalGreeting}! This is ${this.aiName}, ${ownerName}'s AI assistant. What's up — how can I help?`,
-        ];
-      } else {
-        // business hours
-        greetingVariations = [
-          `Hi${personalGreeting}, you've reached ${ownerName}. I'm ${this.aiName}, his AI assistant — he's on another call, but how can I help?`,
-          `Hello${personalGreeting}, this is ${this.aiName}, ${ownerName}'s AI assistant. ${ownerName} is tied up right now — what do you need?`,
-        ];
-      }
+      // Short, direct personal greetings — keep <20 words for fast TTS delivery
+      const timeTag =
+        tc.period === 'night' ? ` It's late, so ${ownerName}'s off the clock` :
+        tc.period === 'weekend' ? ` ${ownerName}'s off for the weekend` :
+        tc.period === 'morning' ? '' :
+        tc.period === 'evening' ? ` ${ownerName}'s wrapping up for the day` :
+        '';
+      greetingVariations = [
+        `Hi, I'm ${this.aiName}. ${ownerName}'s not available right now${timeTag ? ',' + timeTag : ''}. How can I help?`,
+        `Hi${personalGreeting}, this is ${this.aiName}. ${ownerName} is unavailable${timeTag ? ' —' + timeTag : ''}. How can I help you today?`,
+      ];
     } else {
       // Business / company persona
       const timePrefix = tc.period === 'morning' ? 'Good morning'
@@ -239,9 +222,9 @@ export class ReceptionistAIService {
       Response format: {"intent": "sales", "isRelevant": true, "confidence": 0.9}`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4",
+        model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 100,
+        max_tokens: 80,
         temperature: 0.3
       });
 
@@ -309,7 +292,7 @@ export class ReceptionistAIService {
       }`;
 
       const completion = await openai.chat.completions.create({
-        model: "gpt-4",
+        model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
         max_tokens: 200,
         temperature: 0.8

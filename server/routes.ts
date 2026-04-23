@@ -2418,7 +2418,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (aiResponse.action === 'continue') {
         twiml.gather({
           input: ['speech'],
-          speechTimeout: '4',
+          speechTimeout: 'auto',
           speechModel: 'phone_call',
           enhanced: true,
           action: '/api/twilio/call-gather',

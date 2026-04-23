@@ -169,7 +169,7 @@ export async function handleIncomingCall(webhookData: CallWebhookData) {
       if (aiResponse.action === 'continue') {
         twiml.gather({
           input: ['speech'],
-          speechTimeout: '4',
+          speechTimeout: 'auto',
           speechModel: 'phone_call',
           enhanced: true,
           action: '/api/twilio/call-gather',
