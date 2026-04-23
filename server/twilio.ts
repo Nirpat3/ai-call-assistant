@@ -164,7 +164,7 @@ export async function handleIncomingCall(webhookData: CallWebhookData) {
         webhookData.To,
       );
 
-      twiml.say({ voice: 'Polly.Matthew-Neural' }, aiResponse.text);
+      twiml.say({ voice: 'Polly.Joanna-Neural' }, aiResponse.text);
 
       if (aiResponse.action === 'continue') {
         twiml.gather({
@@ -175,10 +175,10 @@ export async function handleIncomingCall(webhookData: CallWebhookData) {
           action: '/api/twilio/call-gather',
           method: 'POST',
         });
-        twiml.say({ voice: 'Polly.Matthew-Neural' }, "I didn't catch that. Are you still there?");
+        twiml.say({ voice: 'Polly.Joanna-Neural' }, "I didn't catch that. Are you still there?");
         twiml.redirect('/api/twilio/call-gather');
       } else if (aiResponse.action === 'transfer' && aiResponse.transferTo) {
-        twiml.say({ voice: 'Polly.Matthew-Neural' }, 'Please hold while I connect you.');
+        twiml.say({ voice: 'Polly.Joanna-Neural' }, 'Please hold while I connect you.');
         twiml.dial(aiResponse.transferTo);
       } else {
         twiml.hangup();

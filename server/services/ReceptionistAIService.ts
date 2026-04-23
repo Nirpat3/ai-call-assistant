@@ -161,28 +161,12 @@ export class ReceptionistAIService {
           `Hello${personalGreeting}! Thanks for calling ${this.companyName}. This is ${this.aiName}, what can I do for you today?`,
         ];
 
-    // Use AI to make greeting more natural based on context
-    try {
-      const prompt = `Generate a natural, warm greeting for a business receptionist. 
-      Company: ${this.companyName}
-      AI Name: ${this.aiName}
-      Caller Name: ${context.callerName || 'Unknown'}
-      Time: ${timeOfDay}
-      
-      Make it sound conversational and professional. Keep it under 25 words.`;
-
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4",
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 100,
-        temperature: 0.7
-      });
-
-      return completion.choices[0]?.message?.content || greetingVariations[0];
-    } catch (error) {
-      console.error('Error generating AI greeting:', error);
-      return greetingVariations[Math.floor(Math.random() * greetingVariations.length)];
-    }
+    // Use one of the curated persona-aware variations directly.
+    // (Previously called OpenAI to "naturalize" the greeting — but with
+    // empty companyName for personal lines, the LLM hallucinated
+    // "[Company]" placeholders. The variations are already human-written
+    // and on-brand, so no LLM refinement is needed for the opener.)
+    return greetingVariations[Math.floor(Math.random() * greetingVariations.length)];
   }
 
   private async analyzeIntent(input: string, context: ConversationContext): Promise<{
