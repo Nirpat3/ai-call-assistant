@@ -61,7 +61,25 @@ export const calls = pgTable("calls", {
   forwarded: boolean("forwarded").default(false),
   forwardedTo: text("forwarded_to"),
   callerName: text("caller_name"),
+  // Screening classification (set once on first utterance)
+  classification: text("classification"), // "legit" | "spam" | "ai_bot"
+  classificationReason: text("classification_reason"),
+  classificationConfidence: integer("classification_confidence"), // stored *100 (0-100)
+  classificationProvenance: text("classification_provenance"), // "rules" | "shre-local" | "cloud-openai" | "default"
   organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).defaultNow(),
+});
+
+// Outbox for asynchronous sync to Shre platform (CortexService via shre-api).
+// Events are enqueued locally on every completed call; a background worker
+// drains to shre-api over Tailscale. Survives Brain downtime.
+export const shreOutbox = pgTable("shre_outbox", {
+  id: serial("id").primaryKey(),
+  eventType: text("event_type").notNull(), // e.g. "call.completed", "voicemail.recorded"
+  payload: jsonb("payload").notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  syncedAt: timestamp("synced_at", { mode: 'date', withTimezone: true }),
   createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).defaultNow(),
 });
 

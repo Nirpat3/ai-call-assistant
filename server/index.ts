@@ -67,7 +67,7 @@ app.use((req, res, next) => {
     reusePort: true,
   }, async () => {
     log(`serving on port ${port}`);
-    
+
     // Auto-process any unprocessed voicemails on startup
     try {
       const { processUnprocessedVoicemails } = await import('./voicemail-transcription');
@@ -79,6 +79,15 @@ app.use((req, res, next) => {
       console.log("Auto-transcription startup routine scheduled");
     } catch (error) {
       console.error("Error scheduling auto-transcription startup routine:", error);
+    }
+
+    // Start async Shre outbox drain — ships call events to shre-api over
+    // Tailscale for training/evolution. Survives Brain downtime.
+    try {
+      const { startOutboxDrain } = await import('./shre-outbox');
+      startOutboxDrain();
+    } catch (error) {
+      console.error("Failed to start shre-outbox drain worker:", error);
     }
   });
 })();

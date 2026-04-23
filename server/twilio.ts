@@ -3,6 +3,8 @@ import { storage } from "./storage";
 import { agentRouter } from "./ai-agents";
 import { humanGreetingSystem } from "./human-greetings";
 import { receptionistAI } from "./services/ReceptionistAIService";
+import { classifyCaller, shouldSilentDrop } from "./classification-service";
+import { enqueueShreEvent } from "./shre-outbox";
 
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
@@ -315,6 +317,56 @@ export async function handleCallGather(webhookData: CallWebhookData & { SpeechRe
       const twiml = new twilio.twiml.VoiceResponse();
       twiml.redirect("/api/twilio/voicemail");
       return twiml.toString();
+    }
+
+    // Classify caller once on first utterance; silent-drop spam / AI bots.
+    if (!call.classification) {
+      const existingContact = await storage.getContactByPhone(webhookData.From);
+      const classification = await classifyCaller(userInput, {
+        fromNumber: webhookData.From,
+        callerName: webhookData.CallerName ?? null,
+        isKnownContact: !!existingContact && !existingContact.isSpam,
+      });
+
+      await storage.updateCall(call.id, {
+        classification: classification.label,
+        classificationReason: classification.reason,
+        classificationConfidence: Math.round(classification.confidence * 100),
+        classificationProvenance: classification.provenance,
+      });
+
+      void enqueueShreEvent("call.classified", {
+        callSid: webhookData.CallSid,
+        from: webhookData.From,
+        firstUtterance: userInput.slice(0, 500),
+        classification,
+      });
+
+      if (shouldSilentDrop(classification)) {
+        console.log(
+          `Silent-drop ${classification.label} (${classification.confidence}) from ${webhookData.From}: ${classification.reason}`
+        );
+        await storage.updateCall(call.id, {
+          status: "blocked",
+          endTime: new Date(),
+          aiHandled: true,
+        });
+        if (existingContact && classification.confidence >= 0.85) {
+          try {
+            await storage.updateContact(existingContact.id, { isSpam: true });
+          } catch (e) {
+            console.error("Failed to flag contact as spam:", e);
+          }
+        }
+        void enqueueShreEvent("call.blocked_spam", {
+          callSid: webhookData.CallSid,
+          from: webhookData.From,
+          classification,
+        });
+        const twiml = new twilio.twiml.VoiceResponse();
+        twiml.hangup();
+        return twiml.toString();
+      }
     }
 
     try {
