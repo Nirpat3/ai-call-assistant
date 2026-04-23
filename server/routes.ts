@@ -2356,7 +2356,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return map[(name || 'general').toLowerCase()] || null;
   }
 
-  // Send SMS notification to the owner after a call leaves a message / ends.
+  // Notify owner of a call event via SendGrid email (primary, instant)
+  // AND Twilio SMS (secondary, blocked by US carriers until A2P 10DLC
+  // registration clears — Twilio error 30034). Both fire in parallel;
+  // either arriving counts. Falls back gracefully if SendGrid/Twilio
+  // aren't configured.
   async function notifyOwnerSMS(params: {
     from: string;
     callerInput: string;
@@ -2364,17 +2368,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     action: string;
   }): Promise<string | null> {
     const env = process.env;
+    const subject = `Annie call — ${params.intent || 'unknown'} — ${params.from}`;
+    const plain = [
+      'Incoming call handled by Annie',
+      '',
+      `From: ${params.from}`,
+      `Intent: ${params.intent || 'unknown'}`,
+      `Action: ${params.action}`,
+      '',
+      'Caller said:',
+      `"${(params.callerInput || '').slice(0, 500)}"`,
+      '',
+      '— ai-call-assistant',
+    ].join('\n');
+
+    // 1. SendGrid email (instant, no carrier blocks)
+    void (async () => {
+      const key = env.SENDGRID_API_KEY;
+      const from = env.FROM_EMAIL;
+      const to = env.NIRAV_EMAIL || env.ADMIN_EMAIL || 'info@rapidrms.com';
+      if (!key || !from) return;
+      try {
+        const r = await fetch('https://api.sendgrid.com/v3/mail/send', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            personalizations: [{ to: [{ email: to }] }],
+            from: { email: from, name: 'Annie (AI Assistant)' },
+            subject,
+            content: [{ type: 'text/plain', value: plain }],
+          }),
+        });
+        if (!r.ok) console.error('SendGrid notifyOwner failed:', r.status, await r.text());
+      } catch (e) {
+        console.error('SendGrid notifyOwner exception:', e);
+      }
+    })();
+
+    // 2. Twilio SMS (blocked until A2P 10DLC registered — error 30034)
     const sid = env.TWILIO_ACCOUNT_SID;
     const auth = env.TWILIO_AUTH_TOKEN;
     const msgSvc = env.TWILIO_MESSAGING_SERVICE_SID;
-    const to = env.NIRAV_MOBILE || env.NOTIFICATION_PHONE;
-    if (!sid || !auth || !msgSvc || !to) return null;
+    const smsTo = env.NIRAV_MOBILE || env.NOTIFICATION_PHONE;
+    if (!sid || !auth || !msgSvc || !smsTo) return null;
     try {
       const basic = Buffer.from(sid + ':' + auth).toString('base64');
       const body = new URLSearchParams({
         MessagingServiceSid: msgSvc,
-        To: to,
-        Body: `Annie call from ${params.from}\nIntent: ${params.intent || 'unknown'}\nAction: ${params.action}\nCaller said: "${(params.callerInput || '').slice(0, 200)}"`,
+        To: smsTo,
+        Body: `Annie call from ${params.from} — ${params.intent || '?'} → ${params.action}. "${(params.callerInput || '').slice(0, 140)}"`,
       });
       const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
         method: 'POST',
