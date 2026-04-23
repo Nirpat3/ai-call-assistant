@@ -143,23 +143,54 @@ export class ReceptionistAIService {
   }
 
   private async generateGreeting(context: ConversationContext): Promise<string> {
-    const timeOfDay = this.getTimeOfDay();
     const personalGreeting = context.callerName ? ` ${context.callerName}` : '';
-
     const isPersonal = (this as any)._isPersonal;
     const ownerName = (this as any)._ownerName || 'Nirav';
+    const tc = this.getTimeContext();
 
-    const greetingVariations = isPersonal
-      ? [
-          `Hi${personalGreeting}, you've reached ${ownerName}. I'm ${this.aiName}, his AI assistant. ${ownerName}'s unavailable right now — can I help you with something, or take a message?`,
-          `Hello${personalGreeting}, this is ${this.aiName}, ${ownerName}'s AI assistant. ${ownerName}'s away from the phone — how can I help?`,
-          `Hi${personalGreeting}, ${ownerName}'s AI assistant here. ${ownerName} can't come to the phone, but I'd be happy to help or pass along a message.`,
-        ]
-      : [
-          `Good ${timeOfDay}! Thanks for calling ${this.companyName}. This is ${this.aiName}${personalGreeting}, how can I help you today?`,
-          `Hi${personalGreeting}! You've reached ${this.companyName}. I'm ${this.aiName}, how may I assist you?`,
-          `Hello${personalGreeting}! Thanks for calling ${this.companyName}. This is ${this.aiName}, what can I do for you today?`,
+    let greetingVariations: string[];
+
+    if (isPersonal) {
+      // Time-aware personal greetings (Annie as Nirav's AI)
+      if (tc.period === 'night') {
+        greetingVariations = [
+          `Hi${personalGreeting}, this is ${this.aiName}, ${ownerName}'s AI assistant. It's late and ${ownerName} is off the clock, but if it's urgent I can pass it along — or I'll have him call you back first thing.`,
+          `Hello${personalGreeting}, ${this.aiName} here. ${ownerName} has wrapped up for the day. What's going on — I'll get a message to him right away.`,
         ];
+      } else if (tc.period === 'weekend') {
+        greetingVariations = [
+          `Hi${personalGreeting}, this is ${this.aiName}, ${ownerName}'s AI assistant. ${ownerName}'s off for the weekend but I'm here to help — what do you need?`,
+          `Hello${personalGreeting}, ${this.aiName} here. It's the weekend so ${ownerName}'s taking time off, but I can take a message or help if you'd like.`,
+        ];
+      } else if (tc.period === 'morning') {
+        greetingVariations = [
+          `Good morning${personalGreeting}! You've reached ${ownerName}. I'm ${this.aiName}, his AI assistant — he's not at his phone yet, what can I help you with?`,
+          `Hi${personalGreeting}, this is ${this.aiName}, ${ownerName}'s AI assistant. ${ownerName}'s getting his morning started — how can I help?`,
+        ];
+      } else if (tc.period === 'evening') {
+        greetingVariations = [
+          `Hi${personalGreeting}, ${this.aiName} here — ${ownerName}'s AI assistant. ${ownerName}'s wrapping up for the day, but I can help or take a message.`,
+          `Good evening${personalGreeting}! This is ${this.aiName}, ${ownerName}'s AI assistant. What's up — how can I help?`,
+        ];
+      } else {
+        // business hours
+        greetingVariations = [
+          `Hi${personalGreeting}, you've reached ${ownerName}. I'm ${this.aiName}, his AI assistant — he's on another call, but how can I help?`,
+          `Hello${personalGreeting}, this is ${this.aiName}, ${ownerName}'s AI assistant. ${ownerName} is tied up right now — what do you need?`,
+        ];
+      }
+    } else {
+      // Business / company persona
+      const timePrefix = tc.period === 'morning' ? 'Good morning'
+        : tc.period === 'evening' ? 'Good evening'
+        : tc.period === 'night' ? 'Hi there'
+        : tc.period === 'weekend' ? 'Hi'
+        : 'Hi';
+      greetingVariations = [
+        `${timePrefix}${personalGreeting}! Thanks for calling ${this.companyName}. This is ${this.aiName}, how can I help?`,
+        `${timePrefix}${personalGreeting}! You've reached ${this.companyName}. I'm ${this.aiName}, what can I do for you today?`,
+      ];
+    }
 
     // Use one of the curated persona-aware variations directly.
     // (Previously called OpenAI to "naturalize" the greeting — but with
@@ -339,7 +370,24 @@ export class ReceptionistAIService {
     const hour = new Date().getHours();
     if (hour < 12) return 'morning';
     if (hour < 17) return 'afternoon';
-    return 'evening';
+    if (hour < 21) return 'evening';
+    return 'night';
+  }
+
+  // Structured time context for greeting selection
+  public getTimeContext(): { period: 'morning' | 'business' | 'evening' | 'night' | 'weekend'; hour: number; isWeekend: boolean; isBusinessHours: boolean } {
+    const now = new Date();
+    const hour = now.getHours();
+    const day = now.getDay(); // 0=Sun, 6=Sat
+    const isWeekend = day === 0 || day === 6;
+    const isBusinessHours = !isWeekend && hour >= 9 && hour < 17;
+    let period: 'morning' | 'business' | 'evening' | 'night' | 'weekend';
+    if (isWeekend) period = 'weekend';
+    else if (hour < 9) period = 'morning';
+    else if (hour < 17) period = 'business';
+    else if (hour < 21) period = 'evening';
+    else period = 'night';
+    return { period, hour, isWeekend, isBusinessHours };
   }
 
   async endConversation(callSid: string): Promise<void> {

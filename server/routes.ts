@@ -2341,6 +2341,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Map AI-returned transfer intent name to an actual phone number.
+  // Personal line urgency → NIRAV_MOBILE (owner). Business intents → dept numbers.
+  function resolveTransferNumber(name: string | undefined, isPersonalLine: boolean): string | null {
+    const env = process.env;
+    const map: Record<string, string | undefined> = {
+      sales:   env.SALES_PHONE,
+      support: env.SUPPORT_PHONE,
+      billing: env.SUPPORT_PHONE,     // billing falls to support queue until separate
+      urgent:  env.NIRAV_MOBILE || env.NOTIFICATION_PHONE,
+      owner:   env.NIRAV_MOBILE || env.NOTIFICATION_PHONE,
+      general: isPersonalLine ? (env.NIRAV_MOBILE || env.NOTIFICATION_PHONE) : env.SUPPORT_PHONE,
+    };
+    return map[(name || 'general').toLowerCase()] || null;
+  }
+
+  // Send SMS notification to the owner after a call leaves a message / ends.
+  async function notifyOwnerSMS(params: {
+    from: string;
+    callerInput: string;
+    intent?: string;
+    action: string;
+  }): Promise<string | null> {
+    const env = process.env;
+    const sid = env.TWILIO_ACCOUNT_SID;
+    const auth = env.TWILIO_AUTH_TOKEN;
+    const msgSvc = env.TWILIO_MESSAGING_SERVICE_SID;
+    const to = env.NIRAV_MOBILE || env.NOTIFICATION_PHONE;
+    if (!sid || !auth || !msgSvc || !to) return null;
+    try {
+      const basic = Buffer.from(sid + ':' + auth).toString('base64');
+      const body = new URLSearchParams({
+        MessagingServiceSid: msgSvc,
+        To: to,
+        Body: `Annie call from ${params.from}\nIntent: ${params.intent || 'unknown'}\nAction: ${params.action}\nCaller said: "${(params.callerInput || '').slice(0, 200)}"`,
+      });
+      const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+        method: 'POST',
+        headers: { Authorization: 'Basic ' + basic, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+      });
+      const j: any = await r.json();
+      return j.sid || null;
+    } catch (e) {
+      console.error('notifyOwnerSMS failed:', e);
+      return null;
+    }
+  }
+
   // NEW: conversation endpoint for the ReceptionistAIService flow
   // (Triggered by the <Gather> in twilio.ts handleIncomingCall's
   // modern path. Different from /api/twilio/gather which is the
@@ -2354,6 +2402,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const twilioLib = (await import('twilio')).default;
       const VoiceResponse = twilioLib.twiml.VoiceResponse;
       const twiml = new VoiceResponse();
+      const isPersonalLine = To === '+17274362999';
 
       if (!callerInput) {
         twiml.say({ voice: 'Polly.Joanna-Neural' }, "I didn't hear anything. Let me transfer you to voicemail so you can leave a message.");
@@ -2377,13 +2426,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         twiml.say({ voice: 'Polly.Joanna-Neural' }, 'Are you still there?');
         twiml.redirect('/api/twilio/call-gather');
-      } else if (aiResponse.action === 'transfer' && aiResponse.transferTo) {
-        twiml.say({ voice: 'Polly.Joanna-Neural' }, 'Please hold while I connect you.');
-        twiml.dial(aiResponse.transferTo);
+      } else if (aiResponse.action === 'transfer') {
+        const target = resolveTransferNumber(aiResponse.transferTo, isPersonalLine);
+        if (target) {
+          twiml.say({ voice: 'Polly.Joanna-Neural' }, 'Please hold while I connect you.');
+          twiml.dial(target);
+          // Fire-and-forget SMS so owner knows the call routed
+          notifyOwnerSMS({ from: From, callerInput, intent: aiResponse.transferTo, action: `transferred to ${target}` })
+            .catch(() => {});
+        } else {
+          twiml.say({ voice: 'Polly.Joanna-Neural' }, "Let me take a message instead.");
+          twiml.redirect('/api/twilio/voicemail');
+          notifyOwnerSMS({ from: From, callerInput, intent: aiResponse.transferTo, action: 'transfer requested but no number — went to voicemail' })
+            .catch(() => {});
+        }
       } else if (aiResponse.action === 'collect_message') {
         twiml.redirect('/api/twilio/voicemail');
+        notifyOwnerSMS({ from: From, callerInput, intent: 'message', action: 'leaving voicemail' })
+          .catch(() => {});
       } else {
         twiml.hangup();
+        notifyOwnerSMS({ from: From, callerInput, intent: 'ended', action: 'call ended by Annie' })
+          .catch(() => {});
       }
 
       res.type('text/xml');
