@@ -2341,6 +2341,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // NEW: conversation endpoint for the ReceptionistAIService flow
+  // (Triggered by the <Gather> in twilio.ts handleIncomingCall's
+  // modern path. Different from /api/twilio/gather which is the
+  // legacy DTMF-menu handler.)
+  app.post('/api/twilio/call-gather', async (req, res) => {
+    try {
+      const { CallSid, SpeechResult, Digits, From, To } = req.body;
+      const callerInput = (SpeechResult || Digits || '').trim();
+
+      const { receptionistAI } = await import('./services/ReceptionistAIService');
+      const twilioLib = (await import('twilio')).default;
+      const VoiceResponse = twilioLib.twiml.VoiceResponse;
+      const twiml = new VoiceResponse();
+
+      if (!callerInput) {
+        twiml.say({ voice: 'Polly.Joanna-Neural' }, "I didn't hear anything. Let me transfer you to voicemail so you can leave a message.");
+        twiml.redirect('/api/twilio/voicemail');
+        res.type('text/xml');
+        return res.send(twiml.toString());
+      }
+
+      const aiResponse = await receptionistAI.processCallerInput(CallSid, callerInput);
+
+      twiml.say({ voice: 'Polly.Joanna-Neural' }, aiResponse.text);
+
+      if (aiResponse.action === 'continue') {
+        twiml.gather({
+          input: ['speech'],
+          speechTimeout: '4',
+          speechModel: 'phone_call',
+          enhanced: true,
+          action: '/api/twilio/call-gather',
+          method: 'POST',
+        });
+        twiml.say({ voice: 'Polly.Joanna-Neural' }, 'Are you still there?');
+        twiml.redirect('/api/twilio/call-gather');
+      } else if (aiResponse.action === 'transfer' && aiResponse.transferTo) {
+        twiml.say({ voice: 'Polly.Joanna-Neural' }, 'Please hold while I connect you.');
+        twiml.dial(aiResponse.transferTo);
+      } else if (aiResponse.action === 'collect_message') {
+        twiml.redirect('/api/twilio/voicemail');
+      } else {
+        twiml.hangup();
+      }
+
+      res.type('text/xml');
+      res.send(twiml.toString());
+    } catch (error) {
+      console.error('Error in /api/twilio/call-gather:', error);
+      res.type('text/xml');
+      res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="Polly.Joanna-Neural">I'm having trouble understanding. Let me transfer you to voicemail.</Say>
+  <Redirect>/api/twilio/voicemail</Redirect>
+</Response>`);
+    }
+  });
+
   app.post('/api/twilio/voicemail', async (req, res) => {
     try {
       const webhookData: CallWebhookData = req.body;
@@ -2757,7 +2815,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`SMS received from ${From}: ${Body}`);
       
       // Send notification for SMS received
-      await sendNotification("sms", process.env.NOTIFICATION_PHONE || "+15551234567", 
+      await sendNotification("sms", process.env.NOTIFICATION_PHONE || "", 
         `New SMS from ${contact?.firstName || From}: ${Body.substring(0, 100)}${Body.length > 100 ? '...' : ''}`, undefined);
       
       // Broadcast SMS update to dashboard
@@ -2911,7 +2969,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         call: {
           callSid: testCallSid,
           from: callerNumber,
-          to: process.env.TWILIO_PHONE_NUMBER || '+17274362999',
+          to: process.env.TWILIO_PHONE_NUMBER!,
           callerName,
           status: 'in-progress',
           startTime: new Date().toISOString()
@@ -3505,14 +3563,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Send SMS via Twilio - use verified phone number instead of toll-free
+      // Send SMS via Twilio - use Messaging Service for A2P compliance
       const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
-      const fromNumber = '+17274362999'; // Use verified number instead of toll-free
-      const twilioMessage = await twilioClient.messages.create({
-        body: message,
-        from: fromNumber,
-        to: to
-      });
+      const fromNumber = process.env.TWILIO_PHONE_NUMBER!;
+      const msgParams: any = { body: message, to };
+      if (process.env.TWILIO_MESSAGING_SERVICE_SID) {
+        msgParams.messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID;
+      } else {
+        msgParams.from = fromNumber;
+      }
+      const twilioMessage = await twilioClient.messages.create(msgParams);
 
       // Look up contact for this phone number
       const contact = await storage.getContactByPhone(to, organizationId);
@@ -3737,7 +3797,7 @@ Respond in JSON format:
     try {
       // Return mock configuration for now
       res.json({
-        phoneNumber: '+17274362999',
+        phoneNumber: process.env.TWILIO_PHONE_NUMBER || '',
         accountSid: process.env.TWILIO_ACCOUNT_SID ? 'ACxxxxx' : null,
         status: 'active'
       });
