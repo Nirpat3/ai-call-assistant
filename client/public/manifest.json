@@ -2,15 +2,20 @@
   "name": "AI Call Assistant",
   "short_name": "AI Calls",
   "description": "Advanced AI-powered communication platform with intelligent call routing and automated transcription",
-  "start_url": "/",
+  "start_url": "/?source=pwa",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#3b82f6",
-  "orientation": "portrait",
+  "orientation": "portrait-primary",
   "categories": ["business", "productivity", "communication"],
   "lang": "en",
   "dir": "ltr",
   "scope": "/",
+  "id": "/",
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
+  "handle_links": "preferred",
   "icons": [
     {
       "src": "/generated-icon.png",
@@ -55,10 +60,6 @@
     }
   ],
   "prefer_related_applications": false,
-  "permissions": [
-    "notifications",
-    "push"
-  ],
   "edge_side_panel": {
     "preferred_width": 400
   },
@@ -67,49 +68,29 @@
       "name": "Dashboard",
       "short_name": "Dashboard",
       "description": "View call analytics and system overview",
-      "url": "/",
-      "icons": [
-        {
-          "src": "/generated-icon.png",
-          "sizes": "96x96"
-        }
-      ]
+      "url": "/dashboard",
+      "icons": [{ "src": "/generated-icon.png", "sizes": "96x96" }]
     },
     {
       "name": "Call Log",
       "short_name": "Calls",
       "description": "View recent calls and call history",
       "url": "/call-log",
-      "icons": [
-        {
-          "src": "/generated-icon.png",
-          "sizes": "96x96"
-        }
-      ]
+      "icons": [{ "src": "/generated-icon.png", "sizes": "96x96" }]
     },
     {
       "name": "Contacts",
       "short_name": "Contacts",
       "description": "Manage your contact directory",
       "url": "/contacts",
-      "icons": [
-        {
-          "src": "/generated-icon.png",
-          "sizes": "96x96"
-        }
-      ]
+      "icons": [{ "src": "/generated-icon.png", "sizes": "96x96" }]
     },
     {
       "name": "Voicemail",
       "short_name": "Voicemail",
       "description": "Listen to voicemail messages",
       "url": "/voicemail",
-      "icons": [
-        {
-          "src": "/generated-icon.png",
-          "sizes": "96x96"
-        }
-      ]
+      "icons": [{ "src": "/generated-icon.png", "sizes": "96x96" }]
     }
   ]
 }

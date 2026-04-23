@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect } from "react";
+import { UpdateBanner } from "@/components/UpdateBanner";
 import Dashboard from "@/pages/dashboard";
 import CallSettings from "@/pages/call-settings";
 import CallLog from "@/pages/call-log";
@@ -202,6 +203,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
+        <UpdateBanner />
         <Toaster />
         <Router />
       </TooltipProvider>

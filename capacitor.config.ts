@@ -5,9 +5,6 @@ const config: CapacitorConfig = {
   appName: 'AI Call Assistant',
   webDir: 'dist/public',
   server: {
-    // In development, point to Vite dev server
-    // url: 'http://localhost:5000',
-    // cleartext: true,
     androidScheme: 'https',
   },
   plugins: {
@@ -30,10 +27,19 @@ const config: CapacitorConfig = {
       style: 'DARK',
       backgroundColor: '#3b82f6',
     },
+    BackgroundRunner: {
+      label: 'com.aicallassistant.background.check',
+      src: 'runners/updateChecker.js',
+      event: 'checkForUpdates',
+      repeat: true,
+      interval: 15,
+      autoStart: true,
+    },
   },
   ios: {
     contentInset: 'automatic',
     scheme: 'AI Call Assistant',
+    preferredContentMode: 'mobile',
   },
   android: {
     allowMixedContent: false,

@@ -28,12 +28,12 @@ export function useAuth(): AuthState & {
   
   const queryClient = useQueryClient();
 
-  const { data: user, isLoading, refetch } = useQuery<User>({
+  const { data: user, isLoading, isFetching, refetch, isError } = useQuery<User>({
     queryKey: ["/api/auth/me"],
     enabled: !!token,
-    retry: false,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   const loginMutation = useMutation({
@@ -98,17 +98,18 @@ export function useAuth(): AuthState & {
     return () => window.removeEventListener("storage", handleStorageChange);
   }, [token, queryClient, refetch]);
 
-  // Auto-logout on token expiration
+  // Auto-logout only when auth/me explicitly fails (expired token, 401, etc.)
   useEffect(() => {
-    if (token && user === undefined && !isLoading) {
-      // Token exists but user fetch failed, likely expired
+    if (token && isError && !isLoading && !isFetching) {
       logout();
     }
-  }, [token, user, isLoading]);
+  }, [token, isError, isLoading, isFetching]);
+
+  const stillLoading = isLoading || (!!token && !user && !isError && isFetching);
 
   return {
     user: user || null,
-    isLoading,
+    isLoading: stillLoading,
     isAuthenticated: !!token && !!user,
     token,
     login: async (email: string, password: string) => {

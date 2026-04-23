@@ -1,13 +1,13 @@
-// Service Worker for AI Call Assistant — Push Notifications + Offline Cache
-const CACHE_NAME = 'ai-call-assistant-v2';
+const APP_VERSION = '__APP_VERSION__';
+const CACHE_NAME = 'ai-call-assistant-' + APP_VERSION;
 const urlsToCache = [
   '/',
   '/generated-icon.png'
 ];
 
-// Install event — cache shell resources
 self.addEventListener('install', function(event) {
-  self.skipWaiting(); // Activate immediately
+  console.log('[SW] Installing version:', APP_VERSION);
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(function(cache) {
@@ -16,24 +16,31 @@ self.addEventListener('install', function(event) {
   );
 });
 
-// Activate event — clean old caches
 self.addEventListener('activate', function(event) {
+  console.log('[SW] Activating version:', APP_VERSION);
   event.waitUntil(
     caches.keys().then(function(cacheNames) {
       return Promise.all(
         cacheNames
-          .filter(function(name) { return name !== CACHE_NAME; })
-          .map(function(name) { return caches.delete(name); })
+          .filter(function(name) { return name.startsWith('ai-call-assistant-') && name !== CACHE_NAME; })
+          .map(function(name) {
+            console.log('[SW] Deleting old cache:', name);
+            return caches.delete(name);
+          })
       );
     }).then(function() {
-      return self.clients.claim(); // Take control of all pages immediately
+      return self.clients.claim();
+    }).then(function() {
+      return self.clients.matchAll({ type: 'window' });
+    }).then(function(clients) {
+      clients.forEach(function(client) {
+        client.postMessage({ type: 'SW_UPDATED', version: APP_VERSION });
+      });
     })
   );
 });
 
-// Fetch event — network-first with cache fallback
 self.addEventListener('fetch', function(event) {
-  // Skip non-GET and API requests
   if (event.request.method !== 'GET' || event.request.url.includes('/api/')) {
     return;
   }
@@ -41,9 +48,8 @@ self.addEventListener('fetch', function(event) {
   event.respondWith(
     fetch(event.request)
       .then(function(response) {
-        // Cache successful responses
         if (response.ok) {
-          const responseClone = response.clone();
+          var responseClone = response.clone();
           caches.open(CACHE_NAME).then(function(cache) {
             cache.put(event.request, responseClone);
           });
@@ -56,11 +62,19 @@ self.addEventListener('fetch', function(event) {
   );
 });
 
-// Push event — show native notification on device
+self.addEventListener('message', function(event) {
+  if (event.data && event.data.type === 'GET_VERSION') {
+    event.ports[0].postMessage({ version: APP_VERSION });
+  }
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('push', function(event) {
   console.log('[SW] Push received');
 
-  let data = {
+  var data = {
     title: 'AI Call Assistant',
     body: 'You have a new notification',
     icon: '/generated-icon.png',
@@ -76,14 +90,14 @@ self.addEventListener('push', function(event) {
 
   if (event.data) {
     try {
-      const payload = event.data.json();
-      data = { ...data, ...payload };
+      var payload = event.data.json();
+      data = Object.assign({}, data, payload);
     } catch (e) {
       data.body = event.data.text();
     }
   }
 
-  const options = {
+  var options = {
     body: data.body,
     icon: data.icon || '/generated-icon.png',
     badge: data.badge || '/generated-icon.png',
@@ -91,12 +105,20 @@ self.addEventListener('push', function(event) {
     data: data.data || {},
     requireInteraction: data.requireInteraction || false,
     actions: data.actions || [],
-    vibrate: [200, 100, 200, 100, 200], // Vibration pattern for mobile
-    renotify: true, // Vibrate again even if same tag
+    vibrate: [200, 100, 200, 100, 200],
+    renotify: true,
     silent: false,
   };
 
-  // Missed call — high priority with call-back action
+  if (data.data && data.data.type === 'app_update') {
+    options.requireInteraction = true;
+    options.tag = 'app-update';
+    options.actions = [
+      { action: 'update', title: 'Update Now' },
+      { action: 'dismiss', title: 'Later' }
+    ];
+  }
+
   if (data.data && data.data.type === 'missed_call') {
     options.requireInteraction = true;
     options.vibrate = [300, 100, 300, 100, 300, 100, 300];
@@ -106,7 +128,6 @@ self.addEventListener('push', function(event) {
     ];
   }
 
-  // Voicemail — medium priority
   if (data.data && data.data.type === 'voicemail') {
     options.actions = [
       { action: 'open', title: 'Listen' },
@@ -119,24 +140,39 @@ self.addEventListener('push', function(event) {
   );
 });
 
-// Notification click — handle actions
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
 
-  const action = event.action;
-  const notifData = event.notification.data || {};
+  var action = event.action;
+  var notifData = event.notification.data || {};
 
-  // Dismiss action — just close
   if (action === 'dismiss') {
     return;
   }
 
-  // Determine which URL to open
-  let urlToOpen = '/';
+  if (action === 'update') {
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+        .then(function(clientList) {
+          for (var i = 0; i < clientList.length; i++) {
+            var client = clientList[i];
+            if ('focus' in client) {
+              client.postMessage({ type: 'FORCE_UPDATE' });
+              return client.focus();
+            }
+          }
+          if (self.clients.openWindow) {
+            return self.clients.openWindow('/');
+          }
+        })
+    );
+    return;
+  }
+
+  var urlToOpen = '/';
 
   if (action === 'callback' && notifData.callFrom) {
-    // Open call-back page with the caller's number
-    urlToOpen = `/call-log?callback=${encodeURIComponent(notifData.callFrom)}`;
+    urlToOpen = '/call-log?callback=' + encodeURIComponent(notifData.callFrom);
   } else if (action === 'open' || !action) {
     urlToOpen = notifData.url || '/call-log';
   }
@@ -144,14 +180,13 @@ self.addEventListener('notificationclick', function(event) {
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then(function(clientList) {
-        // Focus existing window if open
-        for (const client of clientList) {
+        for (var i = 0; i < clientList.length; i++) {
+          var client = clientList[i];
           if (client.url.includes(self.location.origin) && 'focus' in client) {
             client.navigate(urlToOpen);
             return client.focus();
           }
         }
-        // Open new window
         if (self.clients.openWindow) {
           return self.clients.openWindow(urlToOpen);
         }
@@ -159,7 +194,6 @@ self.addEventListener('notificationclick', function(event) {
   );
 });
 
-// Background sync for offline queued actions
 self.addEventListener('sync', function(event) {
   if (event.tag === 'sync-notifications') {
     event.waitUntil(
@@ -171,6 +205,32 @@ self.addEventListener('sync', function(event) {
         .catch(function(err) {
           console.log('[SW] Background sync failed:', err.message);
         })
+    );
+  }
+});
+
+self.addEventListener('periodicsync', function(event) {
+  if (event.tag === 'check-updates') {
+    event.waitUntil(
+      fetch('/api/version')
+        .then(function(response) { return response.json(); })
+        .then(function(data) {
+          if (data.version !== APP_VERSION) {
+            self.registration.showNotification('Update Available', {
+              body: 'A new version of AI Call Assistant is ready. Tap to update.',
+              icon: '/generated-icon.png',
+              badge: '/generated-icon.png',
+              tag: 'app-update',
+              data: { type: 'app_update', version: data.version },
+              requireInteraction: true,
+              actions: [
+                { action: 'update', title: 'Update Now' },
+                { action: 'dismiss', title: 'Later' }
+              ]
+            });
+          }
+        })
+        .catch(function() {})
     );
   }
 });
