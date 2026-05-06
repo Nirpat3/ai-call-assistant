@@ -1,0 +1,7 @@
+# Default owners. Replace with your team handles.
+* @OWNER_PLACEHOLDER
+
+# Example ownership split (edit per repo)
+# /frontend/ @frontend-owner
+# /backend/ @backend-owner
+# /infra/ @platform-owner
