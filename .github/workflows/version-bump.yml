@@ -1,0 +1,54 @@
+name: Version Bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: "Target stage"
+        required: true
+        type: choice
+        options:
+          - dev
+          - qa
+          - beta
+          - prod
+      bump:
+        description: "Semver bump type"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Bump version
+        run: |
+          chmod +x scripts/version.sh
+          scripts/version.sh "${{ inputs.stage }}" "${{ inputs.bump }}"
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if [[ -n "$(git status --porcelain)" ]]; then
+            VERSION="$(cat .version)"
+            git add .version package.json VERSIONING.md scripts/version.sh || true
+            git commit -m "chore(version): bump to ${VERSION} [${{ inputs.stage }}]"
+            git push
+          else
+            echo "No version changes to commit"
+          fi

@@ -43,6 +43,13 @@ jobs:
             jq . .claims/claims.json >/dev/null
           fi
 
+      - name: Verify Managed Rules
+        run: |
+          chmod +x scripts/verify-managed-rules.sh || true
+          if [ -f scripts/verify-managed-rules.sh ]; then
+            ./scripts/verify-managed-rules.sh
+          fi
+
       - name: Run tests
         run: |
           chmod +x scripts/test.sh || true
