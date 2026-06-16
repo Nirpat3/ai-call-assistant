@@ -258,7 +258,7 @@ export class ConversationManager {
       }, "Let me connect you with one of our team members who can better assist you.");
       
       // Add transfer logic here - could be to a queue or specific number
-      twiml.dial('+1404-590-1101'); // Sales line as example
+      twiml.dial(process.env.SALES_PHONE || '+14045901101');
     } else {
       // Add natural speech characteristics
       const naturalContent = this.addSpeechMarks(content);
@@ -317,9 +317,9 @@ export class ConversationManager {
     
     return `
     Business: AI-powered communication platform
-    Phone: +17274362999
-    Sales: +1404-590-1101
-    Support: +1888-727-4302
+    Phone: ${process.env.TWILIO_PHONE_NUMBER}
+    Sales: ${process.env.SALES_PHONE}
+    Support: ${process.env.SUPPORT_PHONE}
     ${contactInfo}
     Business Hours: ${businessHours.isOpen ? 'Currently open' : 'Currently closed'}
     `;

@@ -62,6 +62,10 @@ export interface IStorage {
   getSMSMessagesByPhone(phoneNumber: string, organizationId?: string): Promise<SMSMessage[]>;
   createSMSMessage(insertSMS: InsertSMSMessage): Promise<SMSMessage>;
   updateSMSMessage(id: number, data: Partial<InsertSMSMessage>): Promise<SMSMessage>;
+  createNotification(data: any): Promise<any>;
+  getNotifications(organizationId?: string): Promise<any[]>;
+  updateNotification(id: string | number, data: any): Promise<any>;
+  deleteNotification(id: string | number): Promise<void>;
   
   // Onboarding operations
   getOnboardingProgress(email: string): Promise<any>;
@@ -566,17 +570,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Notification operations
+  async createNotification(data: any): Promise<any> {
+    // Implementation for notification creation
+    return {
+      id: Date.now(),
+      ...data,
+      createdAt: new Date(),
+    };
+  }
+
   async getNotifications(organizationId?: string): Promise<any[]> {
     // Implementation for notification retrieval
     return [];
   }
 
-  async updateNotification(id: string, data: any): Promise<any> {
+  async updateNotification(id: string | number, data: any): Promise<any> {
     // Implementation for notification update
-    return {};
+    return { id, ...data };
   }
 
-  async deleteNotification(id: string): Promise<void> {
+  async deleteNotification(id: string | number): Promise<void> {
     // Implementation for notification deletion
   }
 
