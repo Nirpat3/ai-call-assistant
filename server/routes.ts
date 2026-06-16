@@ -274,21 +274,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         cred.email === email && cred.password === password
       );
 
-      if (!credentials) {
-        return res.status(401).json({ message: "Invalid email or password" });
-      }
-
       const dbUser = await storage.getUserByEmail(email);
       
       if (!dbUser) {
         return res.status(401).json({ message: "User not found in database" });
       }
 
+      const storedPasswordMatches = dbUser.password === password;
+
+      if (!credentials && !storedPasswordMatches) {
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+
+      const userOrganizations = await storage.getUserOrganizations(dbUser.id);
+      const currentMembership = userOrganizations.find((membership) => (
+        membership.organizationId === dbUser.currentOrganizationId
+      )) || userOrganizations[0];
+      const role = credentials?.role || currentMembership?.role || "member";
+
       const token = signToken({
         id: dbUser.id,
-        email: dbUser.email,
+        email: dbUser.email || email,
         username: dbUser.username,
-        role: credentials.role,
+        role,
         organizationId: dbUser.currentOrganizationId || "00000000-0000-0000-0000-000000000001"
       });
 
@@ -296,11 +304,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         token,
         user: {
           id: dbUser.id,
-          email: dbUser.email,
+          email: dbUser.email || email,
           username: dbUser.username,
           firstName: dbUser.firstName || email.split('@')[0],
           lastName: dbUser.lastName || "User",
-          role: credentials.role
+          role
         }
       });
     } catch (error) {
@@ -3614,6 +3622,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/organizations/:id/invite', orgRoutes.inviteUserToOrganization);
   app.get('/api/admin/users', orgRoutes.getAllUsers);
   app.post('/api/admin/users', orgRoutes.createUser);
+  app.patch('/api/admin/users/:id/password', orgRoutes.updateUserPassword);
 
   // SMS API endpoints
   // Get SMS messages

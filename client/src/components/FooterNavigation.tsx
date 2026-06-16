@@ -1,6 +1,5 @@
-import { Phone, Voicemail, Users, Menu, Home, Settings, BarChart3, Bell, User, MessageCircle, MessageSquare, Router, Calendar, Mail, ListTodo } from 'lucide-react';
+import { Menu, Bell, User, MessageCircle } from 'lucide-react';
 import { useLocation } from 'wouter';
-import { Button } from '@/components/ui/button';
 import {
   Sheet,
   SheetContent,
@@ -10,6 +9,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { useState } from 'react';
+import { activeApps } from '@/lib/app-registry';
 
 interface NavItem {
   label: string;
@@ -19,24 +19,18 @@ interface NavItem {
 }
 
 const primaryNavItems: NavItem[] = [
-  { label: 'Dashboard', path: '/', icon: Home },
-  { label: 'Calls', path: '/call-log', icon: Phone },
-  { label: 'Contacts', path: '/contacts', icon: Users },
-  { label: 'Messages', path: '/sms', icon: MessageSquare },
-  { label: 'Calendar', path: '/calendar', icon: Calendar },
-  { label: 'Email', path: '/email', icon: Mail },
-  { label: 'Todo', path: '/todo', icon: ListTodo },
+  ...activeApps
+    .filter((app) => ["dashboard", "calls", "contacts", "messages", "calendar", "email", "todo", "crm"].includes(app.id))
+    .map((app) => ({ label: app.label, path: app.href, icon: app.icon, badge: app.badge ? Number(app.badge) : undefined })),
 ];
 
 const fullMenuItems: NavItem[] = [
-  { label: 'Dashboard', path: '/', icon: Home },
-  { label: 'Calls', path: '/call-log', icon: Phone },
-  { label: 'Contacts', path: '/contacts', icon: Users },
-  { label: 'Messages', path: '/sms', icon: MessageSquare },
-  { label: 'Calendar', path: '/calendar', icon: Calendar },
-  { label: 'Email', path: '/email', icon: Mail },
-  { label: 'Todo', path: '/todo', icon: ListTodo },
-  { label: 'Settings', path: '/system-settings', icon: Settings },
+  ...activeApps.map((app) => ({
+    label: app.label,
+    path: app.href,
+    icon: app.icon,
+    badge: app.badge ? Number(app.badge) : undefined,
+  })),
 ];
 
 export function FooterNavigation() {

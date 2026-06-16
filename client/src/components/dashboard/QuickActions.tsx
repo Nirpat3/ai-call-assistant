@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { Phone, Voicemail, Bot, Users, BarChart3, ArrowRight, Settings, Router } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { quickAccessApps } from "@/lib/app-registry";
 
 export default function QuickActions() {
   const [, navigate] = useLocation();
@@ -13,64 +14,7 @@ export default function QuickActions() {
     refetchInterval: 60000, // Refresh every minute
   });
 
-  const quickActions = [
-    {
-      id: "calls",
-      icon: Phone,
-      label: "View Call Log",
-      description: "Check recent calls & activity",
-      color: "bg-blue-100 text-blue-600",
-      href: "/call-log"
-    },
-    {
-      id: "voicemail",
-      icon: Voicemail,
-      label: "Voicemail Inbox",
-      description: "Listen to voice messages",
-      color: "bg-purple-100 text-purple-600",
-      href: "/voicemail"
-    },
-    {
-      id: "call-routing",
-      icon: Router,
-      label: "Call Routing",
-      description: "Configure call routing & departments",
-      color: "bg-indigo-100 text-indigo-600",
-      href: "/call-settings"
-    },
-    {
-      id: "ai-config",
-      icon: Bot,
-      label: "AI Configuration",
-      description: "Setup AI agent responses",
-      color: "bg-orange-100 text-orange-600",
-      href: "/settings/call-management"
-    },
-    {
-      id: "contacts",
-      icon: Users,
-      label: "Manage Contacts",
-      description: "Customer directory",
-      color: "bg-green-100 text-green-600",
-      href: "/contacts"
-    },
-    {
-      id: "analytics",
-      icon: BarChart3,
-      label: "Call Analytics",
-      description: "Performance metrics",
-      color: "bg-teal-100 text-teal-600",
-      href: "/analytics/calls"
-    },
-    {
-      id: "settings",
-      icon: Settings,
-      label: "System Settings",
-      description: "Configure preferences",
-      color: "bg-gray-100 text-gray-600",
-      href: "/timezone-settings"
-    }
-  ];
+  const quickActions = quickAccessApps;
 
   const handleQuickAction = (href: string) => {
     navigate(href);
@@ -111,7 +55,7 @@ export default function QuickActions() {
               >
                 <CardContent className="p-4">
                   <div className="flex items-start space-x-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${action.color} group-hover:scale-105 transition-transform`}>
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${action.softColor} ${action.iconColor} group-hover:scale-105 transition-transform`}>
                       <IconComponent className="w-5 h-5" />
                     </div>
                     <div className="flex-1 min-w-0">

@@ -24,7 +24,10 @@ import {
   Clock,
   Award,
   Building,
-  ExternalLink
+  ExternalLink,
+  Edit2,
+  Save,
+  X
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -33,6 +36,19 @@ export default function CRMDashboard() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [organizationId] = useState("org-1");
+  const [pipelineStages, setPipelineStages] = useState([
+    "Lead Qualification",
+    "Proposal Stage",
+    "Negotiation",
+  ]);
+  const [leadCategories, setLeadCategories] = useState([
+    "Inbound",
+    "Outbound",
+    "Referral",
+  ]);
+  const [editingStageIndex, setEditingStageIndex] = useState<number | null>(null);
+  const [editingCategoryIndex, setEditingCategoryIndex] = useState<number | null>(null);
+  const [editValue, setEditValue] = useState("");
 
   // Fetch CRM data
   const { data: leads = [], isLoading: leadsLoading } = useQuery({
@@ -86,6 +102,36 @@ export default function CRMDashboard() {
   const handleCreateLead = (e: React.FormEvent) => {
     e.preventDefault();
     createLeadMutation.mutate({ ...newLead, organizationId });
+  };
+
+  const startEdit = (value: string, type: "stage" | "category", index: number) => {
+    setEditValue(value);
+    setEditingStageIndex(type === "stage" ? index : null);
+    setEditingCategoryIndex(type === "category" ? index : null);
+  };
+
+  const cancelEdit = () => {
+    setEditValue("");
+    setEditingStageIndex(null);
+    setEditingCategoryIndex(null);
+  };
+
+  const saveEdit = (type: "stage" | "category", index: number) => {
+    const trimmedValue = editValue.trim();
+    if (!trimmedValue) return;
+
+    if (type === "stage") {
+      setPipelineStages((stages) => stages.map((stage, stageIndex) => (
+        stageIndex === index ? trimmedValue : stage
+      )));
+    } else {
+      setLeadCategories((categories) => categories.map((category, categoryIndex) => (
+        categoryIndex === index ? trimmedValue : category
+      )));
+    }
+
+    toast({ title: `${type === "stage" ? "Stage" : "Lead category"} updated` });
+    cancelEdit();
   };
 
   const getStatusColor = (status: string) => {
@@ -565,6 +611,96 @@ export default function CRMDashboard() {
                   </div>
                   <Button className="w-full">
                     Configure CRM Settings
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="h-5 w-5" />
+                    Pipeline Stages
+                  </CardTitle>
+                  <CardDescription>Edit the sales stages used by your CRM setup</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {pipelineStages.map((stage, index) => (
+                    <div key={`${stage}-${index}`} className="flex items-center gap-3 p-3 border rounded-lg">
+                      {editingStageIndex === index ? (
+                        <>
+                          <Input
+                            value={editValue}
+                            onChange={(event) => setEditValue(event.target.value)}
+                            className="h-9"
+                            aria-label="Pipeline stage name"
+                          />
+                          <Button size="sm" variant="outline" onClick={() => saveEdit("stage", index)}>
+                            <Save className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={cancelEdit}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex-1">{stage}</span>
+                          <Badge variant="outline">Active</Badge>
+                          <Button size="sm" variant="ghost" onClick={() => startEdit(stage, "stage", index)}>
+                            <Edit2 className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Lead Categories
+                  </CardTitle>
+                  <CardDescription>Edit the lead categories available during setup</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {leadCategories.map((category, index) => (
+                    <div key={`${category}-${index}`} className="flex items-center gap-3 p-3 border rounded-lg">
+                      {editingCategoryIndex === index ? (
+                        <>
+                          <Input
+                            value={editValue}
+                            onChange={(event) => setEditValue(event.target.value)}
+                            className="h-9"
+                            aria-label="Lead category name"
+                          />
+                          <Button size="sm" variant="outline" onClick={() => saveEdit("category", index)}>
+                            <Save className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={cancelEdit}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex-1">{category}</span>
+                          <Badge variant="outline">Active</Badge>
+                          <Button size="sm" variant="ghost" onClick={() => startEdit(category, "category", index)}>
+                            <Edit2 className="h-4 w-4 mr-1" />
+                            Edit
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    onClick={() => setLeadCategories((categories) => [...categories, "New Category"])}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Lead Category
                   </Button>
                 </CardContent>
               </Card>

@@ -7,6 +7,7 @@ import {
   Shield, FileText, MapPin, Smartphone, Headphones, Cog, HelpCircle, DollarSign,
   Calendar, Mail, Voicemail, ListTodo
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -24,11 +25,22 @@ import OrganizationSelector from "@/components/dashboard/OrganizationSelector";
 import NotificationIcon from "@/components/NotificationIcon";
 import SupportChatbot from "@/components/SupportChatbot";
 import { useAuth } from "@/hooks/useAuth";
+import { activeApps } from "@/lib/app-registry";
 
 interface AppStoreLayoutProps {
   children: React.ReactNode;
   title?: string;
   subtitle?: string;
+}
+
+interface NavigationItem {
+  href: string;
+  icon: LucideIcon;
+  label: string;
+  subtitle: string;
+  color: string;
+  isCategory?: boolean;
+  children?: NavigationItem[];
 }
 
 export default function AppStoreLayout({ children, title, subtitle }: AppStoreLayoutProps) {
@@ -51,64 +63,17 @@ export default function AppStoreLayout({ children, title, subtitle }: AppStoreLa
     queryKey: ["/api/ai-config"],
   });
 
-  const navigationItems = [
+  const navigationItems: NavigationItem[] = [
     // Main Navigation Items
-    { 
-      href: "/", 
-      icon: Home, 
-      label: "Dashboard", 
-      subtitle: "Overview & Quick Actions",
-      color: "bg-blue-500"
-    },
-    { 
-      href: "/call-log", 
-      icon: Phone, 
-      label: "Calls", 
-      subtitle: "Call History & Management",
-      color: "bg-green-500"
-    },
-    { 
-      href: "/voicemail", 
-      icon: Voicemail, 
-      label: "Voicemail", 
-      subtitle: "Voice Messages",
-      color: "bg-purple-500"
-    },
-    { 
-      href: "/contacts", 
-      icon: Users, 
-      label: "Contacts", 
-      subtitle: "Customer Directory",
-      color: "bg-indigo-500"
-    },
-    { 
-      href: "/sms", 
-      icon: MessageSquare, 
-      label: "Messages", 
-      subtitle: "SMS & Text Communications",
-      color: "bg-green-600"
-    },
-    { 
-      href: "/calendar", 
-      icon: Calendar, 
-      label: "Calendar", 
-      subtitle: "Events & Scheduling",
-      color: "bg-purple-500"
-    },
-    { 
-      href: "/email", 
-      icon: Mail, 
-      label: "Email", 
-      subtitle: "Email Management & Automation",
-      color: "bg-orange-500"
-    },
-    { 
-      href: "/todo", 
-      icon: ListTodo, 
-      label: "Todo", 
-      subtitle: "Tasks & Reminders",
-      color: "bg-blue-600"
-    },
+    ...activeApps
+      .filter((app) => app.id !== "settings")
+      .map((app) => ({
+        href: app.href,
+        icon: app.icon,
+        label: app.label,
+        subtitle: app.description,
+        color: app.color,
+      })),
     
     // Settings - Everything else goes here
     { 

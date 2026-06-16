@@ -6,84 +6,31 @@ import {
   Phone, 
   Users, 
   Headphones, 
-  Settings, 
-  MessageSquare,
-  Calendar,
-  BarChart3,
   Zap,
-  FileText,
-  Mail,
-  Shield,
-  Webhook,
   Search,
   Bell
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { activeApps, bottomDockApps } from "@/lib/app-registry";
 
-const apps = [
-  {
-    id: 'calls',
-    name: 'Calls',
-    icon: Phone,
-    route: '/call-log',
-    color: 'bg-green-500',
-    description: 'Call History & Management',
-    badge: null
-  },
-  {
-    id: 'contacts',
-    name: 'Contacts',
-    icon: Users,
-    route: '/contacts',
-    color: 'bg-indigo-500',
-    description: 'Customer Directory',
-    badge: null
-  },
-  {
-    id: 'messaging',
-    name: 'Messages',
-    icon: MessageSquare,
-    route: '/sms',
-    color: 'bg-green-600',
-    description: 'SMS & Text Communications',
-    badge: '3'
-  },
-  {
-    id: 'calendar',
-    name: 'Calendar',
-    icon: Calendar,
-    route: '/calendar',
-    color: 'bg-purple-500',
-    description: 'Events & Scheduling',
-    badge: null
-  },
-  {
-    id: 'email',
-    name: 'Email',
-    icon: Mail,
-    route: '/email',
-    color: 'bg-orange-500',
-    description: 'Email Management & Automation',
-    badge: null
-  },
-  {
-    id: 'settings',
-    name: 'Settings',
-    icon: Settings,
-    route: '/system-settings',
-    color: 'bg-gray-600',
-    description: 'System Configuration',
-    badge: null
-  }
-];
+interface DashboardStats {
+  callsToday?: number;
+  newLeads?: number;
+  openTickets?: number;
+  aiHandled?: number;
+}
+
+interface DashboardUser {
+  name?: string;
+}
 
 export default function MainDashboard() {
-  const { data: dashboardStats } = useQuery({
+  const { data: dashboardStats } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
   });
 
-  const { data: user } = useQuery({
+  const { data: user } = useQuery<DashboardUser>({
     queryKey: ["/api/user"],
   });
 
@@ -185,8 +132,8 @@ export default function MainDashboard() {
 
         {/* App Grid - iPad Style */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-          {apps.map((app) => (
-            <Link key={app.id} href={app.route}>
+          {activeApps.map((app) => (
+            <Link key={app.id} href={app.href}>
               <Card className="group cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-xl bg-white/80 backdrop-blur-sm border-white/20 dark:bg-gray-800/80 dark:border-gray-700/20 relative overflow-hidden">
                 <CardContent className="p-6 flex flex-col items-center text-center">
                   {/* App Icon */}
@@ -280,36 +227,13 @@ export default function MainDashboard() {
       {/* iPad-style Dock */}
       <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white/80 backdrop-blur-sm rounded-2xl px-4 py-3 shadow-2xl border border-white/20 dark:bg-gray-800/80 dark:border-gray-700/20">
         <div className="flex items-center gap-3">
-          <Link href="/call-log">
-            <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center hover:scale-110 transition-transform cursor-pointer">
-              <Phone className="h-6 w-6 text-white" />
-            </div>
-          </Link>
-          <Link href="/contacts">
-            <div className="w-12 h-12 bg-indigo-500 rounded-xl flex items-center justify-center hover:scale-110 transition-transform cursor-pointer">
-              <Users className="h-6 w-6 text-white" />
-            </div>
-          </Link>
-          <Link href="/sms">
-            <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center hover:scale-110 transition-transform cursor-pointer">
-              <MessageSquare className="h-6 w-6 text-white" />
-            </div>
-          </Link>
-          <Link href="/calendar">
-            <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center hover:scale-110 transition-transform cursor-pointer">
-              <Calendar className="h-6 w-6 text-white" />
-            </div>
-          </Link>
-          <Link href="/email">
-            <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center hover:scale-110 transition-transform cursor-pointer">
-              <Mail className="h-6 w-6 text-white" />
-            </div>
-          </Link>
-          <Link href="/system-settings">
-            <div className="w-12 h-12 bg-gray-600 rounded-xl flex items-center justify-center hover:scale-110 transition-transform cursor-pointer">
-              <Settings className="h-6 w-6 text-white" />
-            </div>
-          </Link>
+          {bottomDockApps.map((app) => (
+            <Link key={app.id} href={app.href}>
+              <div className={`w-12 h-12 ${app.color} rounded-xl flex items-center justify-center hover:scale-110 transition-transform cursor-pointer`}>
+                <app.icon className="h-6 w-6 text-white" />
+              </div>
+            </Link>
+          ))}
         </div>
       </div>
     </div>

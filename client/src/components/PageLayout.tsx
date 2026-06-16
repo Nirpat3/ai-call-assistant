@@ -2,16 +2,12 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { 
   ArrowLeft, 
-  Home, 
-  Phone, 
-  Users, 
-  Headphones, 
-  MessageSquare,
   Bell,
   Search
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { bottomDockApps } from "@/lib/app-registry";
 
 interface PageLayoutProps {
   children: React.ReactNode;
@@ -20,14 +16,6 @@ interface PageLayoutProps {
   icon?: React.ComponentType<{ className?: string }>;
   showBackButton?: boolean;
 }
-
-const quickActions = [
-  { href: "/", icon: Home, label: "Home", color: "text-gray-600" },
-  { href: "/personal-assistant", icon: Phone, label: "Calls", color: "text-blue-600" },
-  { href: "/crm-dashboard", icon: Users, label: "CRM", color: "text-green-600" },
-  { href: "/support-department", icon: Headphones, label: "Support", color: "text-purple-600" },
-  { href: "/sms", icon: MessageSquare, label: "Messages", color: "text-pink-600" },
-];
 
 export default function PageLayout({ 
   children, 
@@ -95,7 +83,7 @@ export default function PageLayout({
       {/* Bottom Navigation Dock */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
         <div className="flex items-center justify-around py-2">
-          {quickActions.map((action) => {
+          {bottomDockApps.map((action) => {
             const ActionIcon = action.icon;
             const isActive = location === action.href;
             return (
@@ -107,7 +95,7 @@ export default function PageLayout({
                   )}>
                     <ActionIcon className={cn(
                       "h-5 w-5",
-                      isActive ? "text-blue-600" : action.color
+                      isActive ? "text-blue-600" : action.iconColor
                     )} />
                   </div>
                   <span className={cn(

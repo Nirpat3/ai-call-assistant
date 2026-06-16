@@ -23,6 +23,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserWithOrganizations(id: number): Promise<UserWithOrganizations | undefined>;
   createUser(insertUser: InsertUser): Promise<User>;
+  updateUserPassword(id: number, password: string): Promise<User | undefined>;
   
   // Organization operations
   getOrganization(id: string): Promise<Organization | undefined>;
@@ -243,6 +244,15 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db
       .insert(users)
       .values(insertUser)
+      .returning();
+    return user;
+  }
+
+  async updateUserPassword(id: number, password: string): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ password, updatedAt: new Date() })
+      .where(eq(users.id, id))
       .returning();
     return user;
   }

@@ -167,7 +167,7 @@ const createUserSchema = z.object({
   lastName: z.string().min(1),
   password: z.string().min(8),
   organizationId: z.string().min(1),
-  role: z.enum(['admin', 'member', 'viewer']),
+  role: z.string().min(1),
 });
 
 export async function createUser(req: Request, res: Response) {
@@ -195,5 +195,36 @@ export async function createUser(req: Request, res: Response) {
   } catch (error) {
     console.error('Error creating user:', error);
     res.status(500).json({ message: 'Failed to create user' });
+  }
+}
+
+const updateUserPasswordSchema = z.object({
+  password: z.string().min(8),
+});
+
+export async function updateUserPassword(req: Request, res: Response) {
+  try {
+    const id = Number(req.params.id);
+    const { password } = updateUserPasswordSchema.parse(req.body);
+
+    if (!Number.isInteger(id)) {
+      return res.status(400).json({ message: 'Invalid user id' });
+    }
+
+    const user = await storage.updateUserPassword(id, password);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      updatedAt: user.updatedAt,
+    });
+  } catch (error) {
+    console.error('Error updating user password:', error);
+    res.status(500).json({ message: 'Failed to update user password' });
   }
 }

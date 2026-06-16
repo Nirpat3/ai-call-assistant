@@ -3,19 +3,9 @@ import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { 
   ArrowLeft, 
-  Home, 
-  Phone, 
-  Users, 
-  Headphones, 
-  MessageSquare,
-  Calendar,
   Settings,
-  BarChart3,
-  FileText,
   Bell,
   Search,
-  Menu,
-  X,
   User,
   LogOut
 } from "lucide-react";
@@ -30,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
+import { bottomDockApps } from "@/lib/app-registry";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -44,14 +35,6 @@ interface AppLayoutProps {
   activeTab?: string;
   onTabChange?: (tabId: string) => void;
 }
-
-const quickActions = [
-  { href: "/", icon: Home, label: "Home", color: "text-gray-600" },
-  { href: "/personal-assistant", icon: Phone, label: "Calls", color: "text-blue-600" },
-  { href: "/crm-dashboard", icon: Users, label: "CRM", color: "text-green-600" },
-  { href: "/support-department", icon: Headphones, label: "Support", color: "text-purple-600" },
-  { href: "/sms", icon: MessageSquare, label: "Messages", color: "text-pink-600" },
-];
 
 export default function AppLayout({ 
   children, 
@@ -169,7 +152,7 @@ export default function AppLayout({
       {/* Bottom Navigation Dock */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
         <div className="flex items-center justify-around py-2">
-          {quickActions.map((action) => {
+          {bottomDockApps.map((action) => {
             const ActionIcon = action.icon;
             const isActive = location === action.href;
             return (
@@ -181,7 +164,7 @@ export default function AppLayout({
                   )}>
                     <ActionIcon className={cn(
                       "h-5 w-5",
-                      isActive ? "text-blue-600" : action.color
+                      isActive ? "text-blue-600" : action.iconColor
                     )} />
                   </div>
                   <span className={cn(
