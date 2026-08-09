@@ -4,17 +4,19 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { ArrowRight } from "lucide-react";
-import { quickAccessApps } from "@/lib/app-registry";
+import { getQuickAccessApps } from "@/lib/app-registry";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function QuickActions() {
   const [, navigate] = useLocation();
+  const { user } = useAuth();
   
   const { data: notificationStatus } = useQuery({
     queryKey: ["/api/notifications/status"],
     refetchInterval: 60000, // Refresh every minute
   });
 
-  const quickActions = quickAccessApps;
+  const quickActions = getQuickAccessApps(user?.permissions);
 
   const handleQuickAction = (href: string) => {
     navigate(href);

@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { 
-  Menu, Bell, Settings, User, LogOut, Home, Phone, Brain, Users, 
-  BarChart3, Clock, Bot, Search, ChevronRight, Sparkles, Puzzle, UserCheck, 
-  PhoneForwarded, Zap, ExternalLink, MessageSquare, Activity, Target, 
+import {
+  Menu, Bell, Settings, User, LogOut, Home, Phone, Brain, Users,
+  BarChart3, Clock, Bot, Search, ChevronRight, Sparkles, Puzzle, UserCheck,
+  PhoneForwarded, Zap, ExternalLink, MessageSquare, Activity, Target,
   Shield, FileText, MapPin, Smartphone, Headphones, Cog, HelpCircle, DollarSign,
   Calendar, Mail, Voicemail, ListTodo
 } from "lucide-react";
@@ -25,7 +25,8 @@ import OrganizationSelector from "@/components/dashboard/OrganizationSelector";
 import NotificationIcon from "@/components/NotificationIcon";
 import SupportChatbot from "@/components/SupportChatbot";
 import { useAuth } from "@/hooks/useAuth";
-import { activeApps } from "@/lib/app-registry";
+import { getVisibleApps } from "@/lib/app-registry";
+import { hasPermission } from "@shared/permissions";
 
 interface AppStoreLayoutProps {
   children: React.ReactNode;
@@ -47,14 +48,15 @@ export default function AppStoreLayout({ children, title, subtitle }: AppStoreLa
   const [location, navigate] = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showAIHelp, setShowAIHelp] = useState(false);
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  const permissions = user?.permissions;
 
   // Listen for AI Help events from the navigation
   useEffect(() => {
     const handleShowAIHelp = () => {
       setShowAIHelp(true);
     };
-    
+
     window.addEventListener('show-ai-help', handleShowAIHelp);
     return () => window.removeEventListener('show-ai-help', handleShowAIHelp);
   }, []);
@@ -63,9 +65,9 @@ export default function AppStoreLayout({ children, title, subtitle }: AppStoreLa
     queryKey: ["/api/ai-config"],
   });
 
-  const navigationItems: NavigationItem[] = [
+  const navigationItems = ([
     // Main Navigation Items
-    ...activeApps
+    ...getVisibleApps(permissions)
       .filter((app) => app.id !== "settings")
       .map((app) => ({
         href: app.href,
@@ -74,117 +76,117 @@ export default function AppStoreLayout({ children, title, subtitle }: AppStoreLa
         subtitle: app.description,
         color: app.color,
       })),
-    
+
     // Settings - Everything else goes here
-    { 
-      href: "/system-settings", 
-      icon: Settings, 
-      label: "Settings", 
+    {
+      href: "/system-settings",
+      icon: Settings,
+      label: "Settings",
       subtitle: "System Configuration",
       color: "bg-gray-600",
       isCategory: true,
       children: [
-        { 
-          href: "/notifications", 
-          icon: Bell, 
-          label: "Notifications", 
+        {
+          href: "/notifications",
+          icon: Bell,
+          label: "Notifications",
           subtitle: "System Alerts & Updates",
           color: "bg-orange-500"
         },
-        { 
-          href: "/ai-management", 
-          icon: Brain, 
-          label: "AI Management", 
+        {
+          href: "/ai-management",
+          icon: Brain,
+          label: "AI Management",
           subtitle: "Smart Rules & Routing",
           color: "bg-pink-500"
         },
-        { 
-          href: "/conversation-analytics", 
-          icon: BarChart3, 
-          label: "Analytics", 
+        ...(hasPermission(permissions, "reports", "read") ? [{
+          href: "/conversation-analytics",
+          icon: BarChart3,
+          label: "Analytics",
           subtitle: "Conversation Insights",
           color: "bg-blue-600"
-        },
-        { 
-          href: "/call-settings", 
-          icon: Phone, 
-          label: "Call Settings", 
+        }] : []),
+        ...(hasPermission(permissions, "calls", "update") ? [{
+          href: "/call-settings",
+          icon: Phone,
+          label: "Call Settings",
           subtitle: "Call Configuration",
           color: "bg-blue-500"
-        },
-        { 
-          href: "/ai-receptionist", 
-          icon: Bot, 
-          label: "AI Receptionist", 
+        }] : []),
+        ...(hasPermission(permissions, "ai", "update") ? [{
+          href: "/ai-receptionist",
+          icon: Bot,
+          label: "AI Receptionist",
           subtitle: "Configure AI Assistant",
           color: "bg-purple-500"
-        },
-        { 
-          href: "/call-routing", 
-          icon: Target, 
-          label: "Call Routing", 
+        }] : []),
+        ...(hasPermission(permissions, "calls", "update") ? [{
+          href: "/call-routing",
+          icon: Target,
+          label: "Call Routing",
           subtitle: "Smart Call Distribution",
           color: "bg-purple-600"
-        },
-        { 
-          href: "/integrations", 
-          icon: Puzzle, 
-          label: "Integrations", 
+        }] : []),
+        ...(hasPermission(permissions, "integrations", "read") ? [{
+          href: "/integrations",
+          icon: Puzzle,
+          label: "Integrations",
           subtitle: "Third-party Services",
           color: "bg-emerald-600"
-        },
-        { 
-          href: "/live-calls", 
-          icon: Activity, 
-          label: "Live Calls", 
+        }] : []),
+        ...(hasPermission(permissions, "calls", "read") ? [{
+          href: "/live-calls",
+          icon: Activity,
+          label: "Live Calls",
           subtitle: "Real-time Call Monitoring",
           color: "bg-red-600"
-        },
-        { 
-          href: "/intent-recognition", 
-          icon: Brain, 
-          label: "Intent Recognition", 
+        }] : []),
+        ...(hasPermission(permissions, "ai", "update") ? [{
+          href: "/intent-recognition",
+          icon: Brain,
+          label: "Intent Recognition",
           subtitle: "AI Pattern Detection",
           color: "bg-pink-600"
-        },
-        { 
-          href: "/onboarding", 
-          icon: Sparkles, 
-          label: "Setup Wizard", 
+        }] : []),
+        ...(hasPermission(permissions, "settings", "update") ? [{
+          href: "/onboarding",
+          icon: Sparkles,
+          label: "Setup Wizard",
           subtitle: "Complete Platform Setup",
           color: "bg-cyan-500"
-        },
-        { 
-          href: "/quick-setup", 
-          icon: Zap, 
-          label: "Quick Setup", 
+        }] : []),
+        ...(hasPermission(permissions, "settings", "update") ? [{
+          href: "/quick-setup",
+          icon: Zap,
+          label: "Quick Setup",
           subtitle: "Fast Configuration",
           color: "bg-cyan-600"
-        }
+        }] : [])
       ]
     }
-  ];
+  ] as NavigationItem[]).filter((item) => !item.isCategory || (item.children && item.children.length > 0));
 
   const getPageTitle = () => {
     if (title) return title;
-    
+
     const currentItem = navigationItems.find(item => item.href === location);
     if (currentItem) return currentItem.label;
-    
+
     if (location === "/") return "Today";
     if (location.startsWith("/contacts/")) return "Contact Profile";
     if (location.includes("analytics")) return "Analytics";
     if (location.includes("settings")) return "Settings";
-    
+
     return "AI Call Assistant";
   };
 
   const getPageSubtitle = () => {
     if (subtitle) return subtitle;
-    
+
     const currentItem = navigationItems.find(item => item.href === location);
     if (currentItem) return currentItem.subtitle;
-    
+
     return "";
   };
 
@@ -197,7 +199,7 @@ export default function AppStoreLayout({ children, title, subtitle }: AppStoreLa
            borderRight: '1px solid rgba(255, 255, 255, 0.1)'
          }}>
       {/* Logo Section with Glass Effect */}
-      <div className={`flex items-center space-x-3 ${mobile ? "mb-4" : "mb-6"} p-3 rounded-2xl`} 
+      <div className={`flex items-center space-x-3 ${mobile ? "mb-4" : "mb-6"} p-3 rounded-2xl`}
            style={mobile ? {
              background: '#f8f9fa',
              border: '1px solid #e9ecef',
@@ -222,8 +224,8 @@ export default function AppStoreLayout({ children, title, subtitle }: AppStoreLa
       {!mobile && (
         <div className="relative mb-4">
           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input 
-            placeholder="Search..." 
+          <Input
+            placeholder="Search..."
             className="input-standard pl-12 h-10"
           />
         </div>
@@ -233,15 +235,15 @@ export default function AppStoreLayout({ children, title, subtitle }: AppStoreLa
       <nav className="sidebar-nav flex-1 overflow-y-auto space-y-2 scrollbar-thin">
         {navigationItems.map((item) => {
           const Icon = item.icon;
-          const isActive = location === item.href || 
+          const isActive = location === item.href ||
                           (item.href !== "/" && location.startsWith(item.href));
-          
+
           // For Settings category, check if any child is active
-          const hasActiveChild = item.children?.some(child => 
+          const hasActiveChild = item.children?.some(child =>
             location === child.href || (child.href !== "/" && location.startsWith(child.href))
           );
           const isSettingsActive = isActive || hasActiveChild;
-          
+
           return (
             <div key={item.href}>
               <button
@@ -272,15 +274,15 @@ export default function AppStoreLayout({ children, title, subtitle }: AppStoreLa
                   <ChevronRight className={`${mobile ? "w-4 h-4" : "w-4 h-4"} text-blue-600`} />
                 )}
               </button>
-              
+
               {/* Settings children - always expanded */}
               {item.children && (
                 <div className="ml-4 mt-2 space-y-1 border-l-2 border-gray-200 pl-4">
                   {item.children.map((child) => {
                     const ChildIcon = child.icon;
-                    const isChildActive = location === child.href || 
+                    const isChildActive = location === child.href ||
                                         (child.href !== "/" && location.startsWith(child.href));
-                    
+
                     return (
                       <button
                         key={child.href}
@@ -329,7 +331,7 @@ export default function AppStoreLayout({ children, title, subtitle }: AppStoreLa
   );
 
   return (
-    <div className="min-h-screen" 
+    <div className="min-h-screen"
          style={{
            background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
            minHeight: '100vh'
@@ -358,16 +360,16 @@ export default function AppStoreLayout({ children, title, subtitle }: AppStoreLa
             {/* Right - Actions */}
             <div className="flex items-center space-x-2">
               {/* AI Help */}
-              <button 
+              <button
                 onClick={() => setShowAIHelp(true)}
                 className="p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl"
               >
                 <Sparkles className="h-5 w-5" />
               </button>
-              
+
               {/* Notifications */}
               <NotificationIcon />
-              
+
               {/* User Menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -434,7 +436,7 @@ export default function AppStoreLayout({ children, title, subtitle }: AppStoreLa
                 <p className="text-sm text-muted-foreground mt-1">{getPageSubtitle()}</p>
               )}
             </div>
-            
+
             <div className="flex items-center space-x-4">
               {/* AI Status with Glass Effect */}
               {aiConfig && (
@@ -445,7 +447,7 @@ export default function AppStoreLayout({ children, title, subtitle }: AppStoreLa
               )}
 
               {/* AI Help Bot - Prominent Position */}
-              <button 
+              <button
                 onClick={() => setShowAIHelp(true)}
                 className="flex items-center space-x-2 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl"
               >
@@ -466,11 +468,11 @@ export default function AppStoreLayout({ children, title, subtitle }: AppStoreLa
                 <DropdownMenuContent align="end" className="w-56 glass-modal">
                   <DropdownMenuLabel>My Account</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  
+
                   {/* Organization Selection in Profile Menu */}
                   <OrganizationSelector />
                   <DropdownMenuSeparator />
-                  
+
                   <DropdownMenuItem onClick={() => navigate("/profile")}>
                     <User className="mr-2 h-4 w-4" />
                     Profile

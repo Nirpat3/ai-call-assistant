@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import type { PermissionMap } from "@shared/permissions";
 
 interface User {
   id: string;
@@ -8,6 +9,18 @@ interface User {
   firstName?: string;
   lastName?: string;
   role?: string;
+  currentOrganizationId?: string;
+  permissions?: PermissionMap;
+  organizations?: Array<{
+    organizationId: string;
+    role: string;
+    permissions?: PermissionMap;
+    organization?: {
+      id: string;
+      name: string;
+      slug: string;
+    };
+  }>;
 }
 
 interface AuthState {

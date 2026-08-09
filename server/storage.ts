@@ -2,7 +2,7 @@ import { eq, desc, and, or, inArray, sql } from "drizzle-orm";
 import { db, pool } from "./db";
 import { 
   users, calls, contacts, contactPhoneNumbers, contactRoutes, organizations, userOrganizations, smsMessages, knowledgeBase,
-  todoCategories, todos,
+  todoCategories, todos, projectGoals, projectWorkstreams, projectStages, projectTaskLinks, projectTaskDependencies, projectKpis, projectAiInsights,
   aiConversations, aiMessages, aiCommandLogs, aiUserPreferences, aiReminders,
   type User, type InsertUser, type Call, type InsertCall, 
   type Contact, type InsertContact, type ContactPhoneNumber, type InsertContactPhoneNumber,
@@ -10,6 +10,10 @@ import {
   type Organization, type InsertOrganization, type UserOrganization, type InsertUserOrganization,
   type UserWithOrganizations, type ContactWithPhoneNumbers, type SMSMessage, type InsertSMSMessage,
   type TodoCategory, type InsertTodoCategory, type Todo, type InsertTodo, type TodoCategoryWithTodos,
+  type ProjectGoal, type InsertProjectGoal, type ProjectWorkstream, type InsertProjectWorkstream,
+  type ProjectStage, type InsertProjectStage, type ProjectTaskLink, type InsertProjectTaskLink,
+  type ProjectTaskDependency, type InsertProjectTaskDependency, type ProjectKpi, type InsertProjectKpi,
+  type ProjectAiInsight, type InsertProjectAiInsight, type ProjectGoalWithDetails,
   type AIConversation, type InsertAIConversation, type AIMessage, type InsertAIMessage,
   type AICommandLog, type InsertAICommandLog, type AIUserPreferences, type InsertAIUserPreferences,
   type AIReminder, type InsertAIReminder
@@ -24,6 +28,7 @@ export interface IStorage {
   getUserWithOrganizations(id: number): Promise<UserWithOrganizations | undefined>;
   createUser(insertUser: InsertUser): Promise<User>;
   updateUserPassword(id: number, password: string): Promise<User | undefined>;
+  updateUserCurrentOrganization(id: number, organizationId: string): Promise<User | undefined>;
   
   // Organization operations
   getOrganization(id: string): Promise<Organization | undefined>;
@@ -92,6 +97,21 @@ export interface IStorage {
   createTodo(insertTodo: InsertTodo): Promise<Todo>;
   updateTodo(id: number, data: Partial<InsertTodo>): Promise<Todo>;
   deleteTodo(id: number): Promise<void>;
+
+  // Project execution operations
+  getProjectGoals(userId: number, organizationId?: string): Promise<ProjectGoalWithDetails[]>;
+  getProjectGoal(id: number, userId?: number, organizationId?: string): Promise<ProjectGoalWithDetails | undefined>;
+  createProjectGoal(data: InsertProjectGoal): Promise<ProjectGoal>;
+  updateProjectGoal(id: number, data: Partial<InsertProjectGoal>): Promise<ProjectGoal>;
+  createProjectWorkstream(data: InsertProjectWorkstream): Promise<ProjectWorkstream>;
+  updateProjectWorkstream(id: number, data: Partial<InsertProjectWorkstream>): Promise<ProjectWorkstream>;
+  createProjectStage(data: InsertProjectStage): Promise<ProjectStage>;
+  updateProjectStage(id: number, data: Partial<InsertProjectStage>): Promise<ProjectStage>;
+  createProjectTaskLink(data: InsertProjectTaskLink): Promise<ProjectTaskLink>;
+  createProjectTaskDependency(data: InsertProjectTaskDependency): Promise<ProjectTaskDependency>;
+  createProjectKpi(data: InsertProjectKpi): Promise<ProjectKpi>;
+  updateProjectKpi(id: number, data: Partial<InsertProjectKpi>): Promise<ProjectKpi>;
+  createProjectAiInsight(data: InsertProjectAiInsight): Promise<ProjectAiInsight>;
   
   // AI Assistant Conversation operations
   getAIConversations(userId: number, organizationId?: string): Promise<AIConversation[]>;
@@ -218,7 +238,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
+    const normalizedEmail = email.trim().toLowerCase();
+    const [user] = await db.select()
+      .from(users)
+      .where(sql`lower(${users.email}) = ${normalizedEmail}`);
     return user;
   }
 
@@ -256,6 +279,15 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db
       .update(users)
       .set({ password, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return user;
+  }
+
+  async updateUserCurrentOrganization(id: number, organizationId: string): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ currentOrganizationId: organizationId, updatedAt: new Date() })
       .where(eq(users.id, id))
       .returning();
     return user;
@@ -1119,6 +1151,251 @@ export class DatabaseStorage implements IStorage {
       console.error('Error deleting todo:', error);
       throw error;
     }
+  }
+
+  // Project execution operations
+  private buildProjectDetails(
+    goals: ProjectGoal[],
+    workstreams: ProjectWorkstream[],
+    stages: ProjectStage[],
+    taskLinks: ProjectTaskLink[],
+    dependencies: ProjectTaskDependency[],
+    kpis: ProjectKpi[],
+    aiInsights: ProjectAiInsight[],
+    linkedTodos: Todo[]
+  ): ProjectGoalWithDetails[] {
+    const todosById = new Map(linkedTodos.map((todo) => [todo.id, todo]));
+    const today = new Date();
+
+    return goals.map((goal) => {
+      const goalWorkstreams = workstreams.filter((workstream) => workstream.goalId === goal.id);
+      const goalStages = stages.filter((stage) => stage.goalId === goal.id);
+      const goalTaskLinks = taskLinks
+        .filter((link) => link.goalId === goal.id)
+        .map((link) => ({ ...link, todo: todosById.get(link.todoId) }));
+      const goalDependencies = dependencies
+        .filter((dependency) => dependency.goalId === goal.id)
+        .map((dependency) => ({
+          ...dependency,
+          todo: todosById.get(dependency.todoId),
+          dependsOnTodo: todosById.get(dependency.dependsOnTodoId)
+        }));
+
+      const completedTasks = goalTaskLinks.filter((link) => link.todo?.completed).length;
+      const totalTasks = goalTaskLinks.length;
+      const overdueTasks = goalTaskLinks.filter((link) => {
+        const dueDate = link.todo?.dueDate ? new Date(link.todo.dueDate) : null;
+        return Boolean(dueDate && dueDate < today && !link.todo?.completed);
+      }).length;
+      const blockedDependencies = goalDependencies.filter((dependency) => {
+        return dependency.status === "active" && dependency.dependsOnTodo && !dependency.dependsOnTodo.completed;
+      });
+
+      const workstreamsWithDetails = goalWorkstreams.map((workstream) => {
+        const workstreamTaskLinks = goalTaskLinks.filter((link) => link.workstreamId === workstream.id);
+        const workstreamCompletedTasks = workstreamTaskLinks.filter((link) => link.todo?.completed).length;
+        const workstreamTotalTasks = workstreamTaskLinks.length;
+
+        return {
+          ...workstream,
+          stages: goalStages.filter((stage) => stage.workstreamId === workstream.id),
+          taskLinks: workstreamTaskLinks,
+          totalTasks: workstreamTotalTasks,
+          completedTasks: workstreamCompletedTasks,
+          completionPercent: workstreamTotalTasks > 0 ? Math.round((workstreamCompletedTasks / workstreamTotalTasks) * 100) : 0
+        };
+      });
+
+      const bottlenecks: ProjectGoalWithDetails["bottlenecks"] = [
+        ...blockedDependencies.map((dependency) => ({
+          type: "dependency" as const,
+          label: dependency.todo?.title || "Blocked task",
+          severity: "high" as const,
+          detail: `Waiting on ${dependency.dependsOnTodo?.title || "dependency"}`
+        })),
+        ...goalTaskLinks
+          .filter((link) => {
+            const dueDate = link.todo?.dueDate ? new Date(link.todo.dueDate) : null;
+            return Boolean(dueDate && dueDate < today && !link.todo?.completed);
+          })
+          .map((link) => ({
+            type: "overdue" as const,
+            label: link.todo?.title || "Overdue task",
+            severity: "medium" as const,
+            detail: "Past due and still open"
+          })),
+        ...workstreamsWithDetails
+          .filter((workstream) => workstream.totalTasks > 0 && workstream.completionPercent < 35 && workstream.status === "in_progress")
+          .map((workstream) => ({
+            type: "workstream" as const,
+            label: workstream.name,
+            severity: "medium" as const,
+            detail: `${workstream.department} is behind expected completion`
+          })),
+      ];
+
+      return {
+        ...goal,
+        workstreams: workstreamsWithDetails,
+        stages: goalStages,
+        taskLinks: goalTaskLinks,
+        dependencies: goalDependencies,
+        kpis: kpis.filter((kpi) => kpi.goalId === goal.id),
+        aiInsights: aiInsights.filter((insight) => insight.goalId === goal.id),
+        totalTasks,
+        completedTasks,
+        blockedTasks: blockedDependencies.length,
+        overdueTasks,
+        completionPercent: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+        bottlenecks
+      };
+    });
+  }
+
+  async getProjectGoals(userId: number, organizationId?: string): Promise<ProjectGoalWithDetails[]> {
+    try {
+      const conditions = [eq(projectGoals.userId, userId)];
+      if (organizationId) {
+        conditions.push(eq(projectGoals.organizationId, organizationId));
+      }
+
+      const goals = await db.select()
+        .from(projectGoals)
+        .where(and(...conditions))
+        .orderBy(desc(projectGoals.updatedAt));
+
+      if (goals.length === 0) {
+        return [];
+      }
+
+      const goalIds = goals.map((goal) => goal.id);
+      const [
+        workstreams,
+        stages,
+        taskLinks,
+        dependencies,
+        kpis,
+        aiInsights
+      ] = await Promise.all([
+        db.select().from(projectWorkstreams).where(inArray(projectWorkstreams.goalId, goalIds)).orderBy(projectWorkstreams.order),
+        db.select().from(projectStages).where(inArray(projectStages.goalId, goalIds)).orderBy(projectStages.order),
+        db.select().from(projectTaskLinks).where(inArray(projectTaskLinks.goalId, goalIds)),
+        db.select().from(projectTaskDependencies).where(inArray(projectTaskDependencies.goalId, goalIds)),
+        db.select().from(projectKpis).where(inArray(projectKpis.goalId, goalIds)),
+        db.select().from(projectAiInsights).where(inArray(projectAiInsights.goalId, goalIds)).orderBy(desc(projectAiInsights.createdAt))
+      ]);
+
+      const todoIds = Array.from(new Set([
+        ...taskLinks.map((link) => link.todoId),
+        ...dependencies.map((dependency) => dependency.todoId),
+        ...dependencies.map((dependency) => dependency.dependsOnTodoId)
+      ]));
+      const linkedTodos = todoIds.length > 0
+        ? await db.select().from(todos).where(inArray(todos.id, todoIds))
+        : [];
+
+      return this.buildProjectDetails(goals, workstreams, stages, taskLinks, dependencies, kpis, aiInsights, linkedTodos);
+    } catch (error) {
+      console.error('Error getting project goals:', error);
+      throw error;
+    }
+  }
+
+  async getProjectGoal(id: number, userId?: number, organizationId?: string): Promise<ProjectGoalWithDetails | undefined> {
+    const goals = await this.getProjectGoals(userId || 1, organizationId);
+    return goals.find((goal) => goal.id === id);
+  }
+
+  async createProjectGoal(data: InsertProjectGoal): Promise<ProjectGoal> {
+    const [goal] = await db.insert(projectGoals).values(data).returning();
+    return goal;
+  }
+
+  async updateProjectGoal(id: number, data: Partial<InsertProjectGoal>): Promise<ProjectGoal> {
+    const [goal] = await db.update(projectGoals)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(projectGoals.id, id))
+      .returning();
+    return goal;
+  }
+
+  async createProjectWorkstream(data: InsertProjectWorkstream): Promise<ProjectWorkstream> {
+    const [workstream] = await db.insert(projectWorkstreams).values(data).returning();
+    return workstream;
+  }
+
+  async updateProjectWorkstream(id: number, data: Partial<InsertProjectWorkstream>): Promise<ProjectWorkstream> {
+    const [workstream] = await db.update(projectWorkstreams)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(projectWorkstreams.id, id))
+      .returning();
+    return workstream;
+  }
+
+  async createProjectStage(data: InsertProjectStage): Promise<ProjectStage> {
+    const [stage] = await db.insert(projectStages).values(data).returning();
+    return stage;
+  }
+
+  async updateProjectStage(id: number, data: Partial<InsertProjectStage>): Promise<ProjectStage> {
+    const [stage] = await db.update(projectStages)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(projectStages.id, id))
+      .returning();
+    return stage;
+  }
+
+  async createProjectTaskLink(data: InsertProjectTaskLink): Promise<ProjectTaskLink> {
+    const [existing] = await db.select()
+      .from(projectTaskLinks)
+      .where(and(
+        eq(projectTaskLinks.goalId, data.goalId),
+        eq(projectTaskLinks.todoId, data.todoId)
+      ))
+      .limit(1);
+
+    if (existing) {
+      return existing;
+    }
+
+    const [link] = await db.insert(projectTaskLinks).values(data).returning();
+    return link;
+  }
+
+  async createProjectTaskDependency(data: InsertProjectTaskDependency): Promise<ProjectTaskDependency> {
+    const [existing] = await db.select()
+      .from(projectTaskDependencies)
+      .where(and(
+        eq(projectTaskDependencies.goalId, data.goalId),
+        eq(projectTaskDependencies.todoId, data.todoId),
+        eq(projectTaskDependencies.dependsOnTodoId, data.dependsOnTodoId)
+      ))
+      .limit(1);
+
+    if (existing) {
+      return existing;
+    }
+
+    const [dependency] = await db.insert(projectTaskDependencies).values(data).returning();
+    return dependency;
+  }
+
+  async createProjectKpi(data: InsertProjectKpi): Promise<ProjectKpi> {
+    const [kpi] = await db.insert(projectKpis).values(data).returning();
+    return kpi;
+  }
+
+  async updateProjectKpi(id: number, data: Partial<InsertProjectKpi>): Promise<ProjectKpi> {
+    const [kpi] = await db.update(projectKpis)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(projectKpis.id, id))
+      .returning();
+    return kpi;
+  }
+
+  async createProjectAiInsight(data: InsertProjectAiInsight): Promise<ProjectAiInsight> {
+    const [insight] = await db.insert(projectAiInsights).values(data).returning();
+    return insight;
   }
 
   // AI Assistant Conversation operations

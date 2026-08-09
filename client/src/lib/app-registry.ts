@@ -1,6 +1,7 @@
 import {
   Bot,
   Calendar,
+  Briefcase,
   Headphones,
   Home,
   ListTodo,
@@ -12,6 +13,7 @@ import {
   Voicemail,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { hasPermission, type PermissionAction, type PermissionMap, type PermissionModule } from "@shared/permissions";
 
 export interface AppRegistryItem {
   id: string;
@@ -25,6 +27,10 @@ export interface AppRegistryItem {
   iconColor: string;
   badge?: string | number | null;
   showInQuickAccess?: boolean;
+  requiredPermission?: {
+    module: PermissionModule;
+    action?: PermissionAction;
+  };
 }
 
 export const activeApps: AppRegistryItem[] = [
@@ -38,6 +44,7 @@ export const activeApps: AppRegistryItem[] = [
     color: "bg-blue-500",
     softColor: "bg-blue-100",
     iconColor: "text-blue-600",
+    requiredPermission: { module: "ai", action: "read" },
   },
   {
     id: "calls",
@@ -50,6 +57,7 @@ export const activeApps: AppRegistryItem[] = [
     softColor: "bg-green-100",
     iconColor: "text-green-600",
     showInQuickAccess: true,
+    requiredPermission: { module: "calls", action: "read" },
   },
   {
     id: "voicemail",
@@ -62,6 +70,7 @@ export const activeApps: AppRegistryItem[] = [
     softColor: "bg-purple-100",
     iconColor: "text-purple-600",
     showInQuickAccess: true,
+    requiredPermission: { module: "calls", action: "read" },
   },
   {
     id: "contacts",
@@ -74,6 +83,7 @@ export const activeApps: AppRegistryItem[] = [
     softColor: "bg-indigo-100",
     iconColor: "text-indigo-600",
     showInQuickAccess: true,
+    requiredPermission: { module: "contacts", action: "read" },
   },
   {
     id: "messages",
@@ -87,6 +97,7 @@ export const activeApps: AppRegistryItem[] = [
     iconColor: "text-emerald-600",
     badge: "3",
     showInQuickAccess: true,
+    requiredPermission: { module: "messages", action: "read" },
   },
   {
     id: "calendar",
@@ -99,6 +110,7 @@ export const activeApps: AppRegistryItem[] = [
     softColor: "bg-violet-100",
     iconColor: "text-violet-600",
     showInQuickAccess: true,
+    requiredPermission: { module: "calendar", action: "read" },
   },
   {
     id: "email",
@@ -111,6 +123,7 @@ export const activeApps: AppRegistryItem[] = [
     softColor: "bg-orange-100",
     iconColor: "text-orange-600",
     showInQuickAccess: true,
+    requiredPermission: { module: "email", action: "read" },
   },
   {
     id: "todo",
@@ -123,6 +136,20 @@ export const activeApps: AppRegistryItem[] = [
     softColor: "bg-sky-100",
     iconColor: "text-sky-600",
     showInQuickAccess: true,
+    requiredPermission: { module: "tasks", action: "read" },
+  },
+  {
+    id: "projects",
+    name: "Projects",
+    label: "Projects",
+    description: "Goals, stages, dependencies & KPIs",
+    href: "/project-intelligence",
+    icon: Briefcase,
+    color: "bg-amber-600",
+    softColor: "bg-amber-100",
+    iconColor: "text-amber-700",
+    showInQuickAccess: true,
+    requiredPermission: { module: "projects", action: "read" },
   },
   {
     id: "assistant",
@@ -135,6 +162,7 @@ export const activeApps: AppRegistryItem[] = [
     softColor: "bg-cyan-100",
     iconColor: "text-cyan-700",
     showInQuickAccess: true,
+    requiredPermission: { module: "ai", action: "read" },
   },
   {
     id: "crm",
@@ -147,6 +175,7 @@ export const activeApps: AppRegistryItem[] = [
     softColor: "bg-teal-100",
     iconColor: "text-teal-700",
     showInQuickAccess: true,
+    requiredPermission: { module: "crm", action: "read" },
   },
   {
     id: "support",
@@ -159,6 +188,7 @@ export const activeApps: AppRegistryItem[] = [
     softColor: "bg-fuchsia-100",
     iconColor: "text-fuchsia-700",
     showInQuickAccess: true,
+    requiredPermission: { module: "support", action: "read" },
   },
   {
     id: "settings",
@@ -170,10 +200,30 @@ export const activeApps: AppRegistryItem[] = [
     color: "bg-gray-600",
     softColor: "bg-gray-100",
     iconColor: "text-gray-600",
+    requiredPermission: { module: "settings", action: "read" },
   },
 ];
 
+export function canAccessApp(app: AppRegistryItem, permissions?: PermissionMap | null) {
+  if (!app.requiredPermission) return true;
+  return hasPermission(permissions, app.requiredPermission.module, app.requiredPermission.action || "read");
+}
+
+export function getVisibleApps(permissions?: PermissionMap | null) {
+  return activeApps.filter((app) => canAccessApp(app, permissions));
+}
+
+export function getQuickAccessApps(permissions?: PermissionMap | null) {
+  return getVisibleApps(permissions).filter((app) => app.showInQuickAccess);
+}
+
+export function getBottomDockApps(permissions?: PermissionMap | null) {
+  return getVisibleApps(permissions).filter((app) =>
+    ["dashboard", "calls", "crm", "projects", "messages"].includes(app.id)
+  );
+}
+
 export const quickAccessApps = activeApps.filter((app) => app.showInQuickAccess);
 export const bottomDockApps = activeApps.filter((app) =>
-  ["dashboard", "calls", "crm", "support", "messages"].includes(app.id)
+  ["dashboard", "calls", "crm", "projects", "messages"].includes(app.id)
 );

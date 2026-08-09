@@ -2,6 +2,9 @@ import { pgTable, text, serial, integer, boolean, timestamp, jsonb, varchar, uui
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { getPermissionsForRole, hasPermission, normalizeRole, rolePermissions } from "./permissions";
+export { getPermissionsForRole, hasPermission, normalizeRole, rolePermissions };
+export type { PermissionAction, PermissionMap, PermissionModule, UserRole } from "./permissions";
 
 // Organizations for multi-tenancy
 export const organizations = pgTable("organizations", {
@@ -392,6 +395,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
   firstName: true,
   lastName: true,
+  currentOrganizationId: true,
 });
 
 export const insertUserOrganizationSchema = createInsertSchema(userOrganizations);
@@ -585,34 +589,6 @@ export const salesTemplates = pgTable("sales_templates", {
   updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).defaultNow(),
 });
 
-// Role definitions
-export type UserRole = "admin" | "member" | "viewer";
-
-// Permissions mapping
-export const rolePermissions = {
-  admin: {
-    organizations: ["read", "create", "update", "delete"],
-    users: ["read", "create", "update", "delete"],
-    calls: ["read", "create", "update", "delete"],
-    contacts: ["read", "create", "update", "delete"],
-    settings: ["read", "create", "update", "delete"],
-  },
-  member: {
-    organizations: ["read"],
-    users: ["read"],
-    calls: ["read", "create", "update"],
-    contacts: ["read", "create", "update"],
-    settings: ["read"],
-  },
-  viewer: {
-    organizations: ["read"],
-    users: ["read"],
-    calls: ["read"],
-    contacts: ["read"],
-    settings: ["read"],
-  },
-} as const;
-
 // CRM Insert Schemas  
 export const insertLeadSchema = createInsertSchema(leads).omit({
   id: true,
@@ -694,6 +670,114 @@ export const todos = pgTable("todos", {
   updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).defaultNow(),
 });
 
+// Project execution layer. Todos remain the executable task records; these
+// tables organize them into goals, departments/workstreams, stages, KPIs, and dependencies.
+export const projectGoals = pgTable("project_goals", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("planning"), // planning, active, at_risk, blocked, complete
+  priority: text("priority").notNull().default("medium"),
+  ownerDepartment: text("owner_department").notNull().default("Product"),
+  successMetric: text("success_metric"),
+  targetDate: timestamp("target_date", { mode: 'date', withTimezone: true }),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  userId: integer("user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).defaultNow(),
+});
+
+export const projectWorkstreams = pgTable("project_workstreams", {
+  id: serial("id").primaryKey(),
+  goalId: integer("goal_id").notNull().references(() => projectGoals.id),
+  name: text("name").notNull(),
+  department: text("department").notNull(),
+  platform: text("platform"),
+  owner: text("owner"),
+  status: text("status").notNull().default("not_started"), // not_started, in_progress, blocked, complete
+  capacity: integer("capacity").default(100),
+  order: integer("order").default(0),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  userId: integer("user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).defaultNow(),
+});
+
+export const projectStages = pgTable("project_stages", {
+  id: serial("id").primaryKey(),
+  goalId: integer("goal_id").notNull().references(() => projectGoals.id),
+  workstreamId: integer("workstream_id").references(() => projectWorkstreams.id),
+  name: text("name").notNull(),
+  status: text("status").notNull().default("not_started"), // not_started, in_progress, blocked, complete
+  order: integer("order").default(0),
+  startDate: timestamp("start_date", { mode: 'date', withTimezone: true }),
+  dueDate: timestamp("due_date", { mode: 'date', withTimezone: true }),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  userId: integer("user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).defaultNow(),
+});
+
+export const projectTaskLinks = pgTable("project_task_links", {
+  id: serial("id").primaryKey(),
+  goalId: integer("goal_id").notNull().references(() => projectGoals.id),
+  workstreamId: integer("workstream_id").references(() => projectWorkstreams.id),
+  stageId: integer("stage_id").references(() => projectStages.id),
+  todoId: integer("todo_id").notNull().references(() => todos.id),
+  role: text("role").notNull().default("execution"),
+  notes: text("notes"),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  userId: integer("user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).defaultNow(),
+}, (table) => ({
+  goalTodoUnique: unique().on(table.goalId, table.todoId),
+}));
+
+export const projectTaskDependencies = pgTable("project_task_dependencies", {
+  id: serial("id").primaryKey(),
+  goalId: integer("goal_id").notNull().references(() => projectGoals.id),
+  todoId: integer("todo_id").notNull().references(() => todos.id),
+  dependsOnTodoId: integer("depends_on_todo_id").notNull().references(() => todos.id),
+  dependencyType: text("dependency_type").notNull().default("finish_to_start"),
+  status: text("status").notNull().default("active"),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  userId: integer("user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).defaultNow(),
+}, (table) => ({
+  goalDependencyUnique: unique().on(table.goalId, table.todoId, table.dependsOnTodoId),
+}));
+
+export const projectKpis = pgTable("project_kpis", {
+  id: serial("id").primaryKey(),
+  goalId: integer("goal_id").notNull().references(() => projectGoals.id),
+  name: text("name").notNull(),
+  target: numeric("target", { precision: 12, scale: 2 }).notNull().default("100"),
+  current: numeric("current", { precision: 12, scale: 2 }).notNull().default("0"),
+  unit: text("unit").notNull().default("%"),
+  status: text("status").notNull().default("tracking"), // tracking, at_risk, achieved
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  userId: integer("user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).defaultNow(),
+});
+
+export const projectAiInsights = pgTable("project_ai_insights", {
+  id: serial("id").primaryKey(),
+  goalId: integer("goal_id").notNull().references(() => projectGoals.id),
+  insightType: text("insight_type").notNull().default("risk"),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  severity: text("severity").notNull().default("medium"),
+  recommendedAction: text("recommended_action"),
+  sourceData: jsonb("source_data").default({}),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  userId: integer("user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).defaultNow(),
+  updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).defaultNow(),
+});
+
 // Todo Insert Schemas
 export const insertTodoCategorySchema = createInsertSchema(todoCategories).omit({
   id: true,
@@ -708,17 +792,110 @@ export const insertTodoSchema = createInsertSchema(todos).omit({
   completedAt: true,
 });
 
+export const insertProjectGoalSchema = createInsertSchema(projectGoals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertProjectWorkstreamSchema = createInsertSchema(projectWorkstreams).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertProjectStageSchema = createInsertSchema(projectStages).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertProjectTaskLinkSchema = createInsertSchema(projectTaskLinks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertProjectTaskDependencySchema = createInsertSchema(projectTaskDependencies).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertProjectKpiSchema = createInsertSchema(projectKpis).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertProjectAiInsightSchema = createInsertSchema(projectAiInsights).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Todo Types
 export type TodoCategory = typeof todoCategories.$inferSelect;
 export type InsertTodoCategory = z.infer<typeof insertTodoCategorySchema>;
 export type Todo = typeof todos.$inferSelect;
 export type InsertTodo = z.infer<typeof insertTodoSchema>;
+export type ProjectGoal = typeof projectGoals.$inferSelect;
+export type InsertProjectGoal = z.infer<typeof insertProjectGoalSchema>;
+export type ProjectWorkstream = typeof projectWorkstreams.$inferSelect;
+export type InsertProjectWorkstream = z.infer<typeof insertProjectWorkstreamSchema>;
+export type ProjectStage = typeof projectStages.$inferSelect;
+export type InsertProjectStage = z.infer<typeof insertProjectStageSchema>;
+export type ProjectTaskLink = typeof projectTaskLinks.$inferSelect;
+export type InsertProjectTaskLink = z.infer<typeof insertProjectTaskLinkSchema>;
+export type ProjectTaskDependency = typeof projectTaskDependencies.$inferSelect;
+export type InsertProjectTaskDependency = z.infer<typeof insertProjectTaskDependencySchema>;
+export type ProjectKpi = typeof projectKpis.$inferSelect;
+export type InsertProjectKpi = z.infer<typeof insertProjectKpiSchema>;
+export type ProjectAiInsight = typeof projectAiInsights.$inferSelect;
+export type InsertProjectAiInsight = z.infer<typeof insertProjectAiInsightSchema>;
 
 // Extended todo types for UI
 export type TodoCategoryWithTodos = TodoCategory & {
   todos: Todo[];
   totalCount: number;
   completedCount: number;
+};
+
+export type ProjectTaskLinkWithTodo = ProjectTaskLink & {
+  todo?: Todo;
+};
+
+export type ProjectTaskDependencyWithTodos = ProjectTaskDependency & {
+  todo?: Todo;
+  dependsOnTodo?: Todo;
+};
+
+export type ProjectWorkstreamWithDetails = ProjectWorkstream & {
+  stages: ProjectStage[];
+  taskLinks: ProjectTaskLinkWithTodo[];
+  totalTasks: number;
+  completedTasks: number;
+  completionPercent: number;
+};
+
+export type ProjectGoalWithDetails = ProjectGoal & {
+  workstreams: ProjectWorkstreamWithDetails[];
+  stages: ProjectStage[];
+  taskLinks: ProjectTaskLinkWithTodo[];
+  dependencies: ProjectTaskDependencyWithTodos[];
+  kpis: ProjectKpi[];
+  aiInsights: ProjectAiInsight[];
+  totalTasks: number;
+  completedTasks: number;
+  blockedTasks: number;
+  overdueTasks: number;
+  completionPercent: number;
+  bottlenecks: Array<{
+    type: "dependency" | "overdue" | "workstream" | "stage";
+    label: string;
+    severity: "low" | "medium" | "high";
+    detail: string;
+  }>;
 };
 
 // AI Assistant Tables

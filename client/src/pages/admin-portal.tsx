@@ -15,6 +15,7 @@ import { z } from 'zod';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Organization, UserWithOrganizations, UserRole } from '@shared/schema';
+import { rolePermissions } from '@shared/permissions';
 
 const organizationFormSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -42,7 +43,7 @@ interface RoleDefinition {
   id: string;
   name: string;
   description: string;
-  permissions: Record<string, PermissionAction[]>;
+  permissions: Partial<Record<string, PermissionAction[]>>;
   isPredefined?: boolean;
 }
 
@@ -55,64 +56,28 @@ const defaultRoleDefinitions: RoleDefinition[] = [
     name: 'Admin',
     description: 'Full administrative access across the organization.',
     isPredefined: true,
-    permissions: {
-      organizations: ['read', 'create', 'update', 'delete'],
-      users: ['read', 'create', 'update', 'delete'],
-      calls: ['read', 'create', 'update', 'delete', 'export'],
-      contacts: ['read', 'create', 'update', 'delete', 'export'],
-      settings: ['read', 'update', 'manage'],
-      reports: ['read', 'export'],
-      billing: ['read', 'update'],
-      integrations: ['read', 'create', 'update', 'delete'],
-    },
+    permissions: rolePermissions.admin,
   },
   {
     id: 'manager',
     name: 'Manager',
     description: 'Manage team users, customers, calls, and reports.',
     isPredefined: true,
-    permissions: {
-      organizations: ['read'],
-      users: ['read', 'create', 'update'],
-      calls: ['read', 'create', 'update', 'export'],
-      contacts: ['read', 'create', 'update', 'export'],
-      settings: ['read'],
-      reports: ['read', 'export'],
-      billing: ['read'],
-      integrations: ['read'],
-    },
+    permissions: rolePermissions.manager,
   },
   {
     id: 'member',
     name: 'Member',
     description: 'Standard workspace access for daily operations.',
     isPredefined: true,
-    permissions: {
-      organizations: ['read'],
-      users: ['read'],
-      calls: ['read', 'create', 'update'],
-      contacts: ['read', 'create', 'update'],
-      settings: ['read'],
-      reports: ['read'],
-      billing: [],
-      integrations: ['read'],
-    },
+    permissions: rolePermissions.member,
   },
   {
     id: 'viewer',
     name: 'Viewer',
     description: 'Read-only access for monitoring and review.',
     isPredefined: true,
-    permissions: {
-      organizations: ['read'],
-      users: ['read'],
-      calls: ['read'],
-      contacts: ['read'],
-      settings: ['read'],
-      reports: ['read'],
-      billing: [],
-      integrations: [],
-    },
+    permissions: rolePermissions.viewer,
   },
 ];
 
@@ -938,9 +903,9 @@ export default function AdminPortal() {
                       <p className="text-sm text-gray-600 dark:text-gray-300">{role.description}</p>
                       <div className="flex flex-wrap gap-2">
                         {Object.entries(role.permissions).map(([module, actions]) => (
-                          actions.length > 0 ? (
+                          (actions || []).length > 0 ? (
                             <Badge key={module} variant="outline" className="capitalize">
-                              {module}: {actions.join(', ')}
+                              {module}: {(actions || []).join(', ')}
                             </Badge>
                           ) : null
                         ))}

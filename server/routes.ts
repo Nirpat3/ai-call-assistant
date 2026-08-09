@@ -53,7 +53,8 @@ import { webhookIntegrationService, type WebhookConfig } from "./webhook-integra
 import { simpleSales } from "./simple-sales";
 import { calendarService } from "./calendar-service";
 import { aiAssistantService } from "./ai-assistant-service";
-import { requireAuth, signToken } from "./middleware/auth";
+import { requireAuth, requirePermission, signToken } from "./middleware/auth";
+import { getPermissionsForRole } from "@shared/permissions";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Configure multer for file uploads
@@ -263,6 +264,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Email and password are required" });
       }
 
+      const normalizedEmail = String(email).trim().toLowerCase();
+
       // For demo purposes, accept these test credentials
       const validCredentials = [
         { email: "admin@aicallagent.com", password: "admin123", role: "admin" },
@@ -271,10 +274,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ];
 
       const credentials = validCredentials.find(cred => 
-        cred.email === email && cred.password === password
+        cred.email === normalizedEmail && cred.password === password
       );
 
-      const dbUser = await storage.getUserByEmail(email);
+      const dbUser = await storage.getUserByEmail(normalizedEmail);
       
       if (!dbUser) {
         return res.status(401).json({ message: "User not found in database" });
@@ -291,24 +294,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         membership.organizationId === dbUser.currentOrganizationId
       )) || userOrganizations[0];
       const role = credentials?.role || currentMembership?.role || "member";
+      const organizationId = dbUser.currentOrganizationId || currentMembership?.organizationId || "00000000-0000-0000-0000-000000000001";
+      const permissions = getPermissionsForRole(role);
 
       const token = signToken({
         id: dbUser.id,
-        email: dbUser.email || email,
+        email: dbUser.email || normalizedEmail,
         username: dbUser.username,
         role,
-        organizationId: dbUser.currentOrganizationId || "00000000-0000-0000-0000-000000000001"
+        organizationId,
+        permissions,
       });
 
       res.json({
         token,
         user: {
           id: dbUser.id,
-          email: dbUser.email || email,
+          email: dbUser.email || normalizedEmail,
           username: dbUser.username,
-          firstName: dbUser.firstName || email.split('@')[0],
+          firstName: dbUser.firstName || normalizedEmail.split('@')[0],
           lastName: dbUser.lastName || "User",
-          role
+          role,
+          currentOrganizationId: organizationId,
+          permissions,
+          organizations: userOrganizations.map((membership) => ({
+            ...membership,
+            permissions: getPermissionsForRole(membership.role),
+          })),
         }
       });
     } catch (error) {
@@ -341,6 +353,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user!;
       
       const dbUser = await storage.getUser(user.id);
+      const userOrganizations = await storage.getUserOrganizations(user.id);
+      const currentOrganizationId = dbUser?.currentOrganizationId || user.organizationId;
+      const currentMembership = userOrganizations.find((membership) => membership.organizationId === currentOrganizationId) || userOrganizations[0];
+      const role = currentMembership?.role || user.role;
+      const permissions = getPermissionsForRole(role);
       
       res.json({
         id: user.id,
@@ -348,7 +365,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         username: user.username,
         firstName: dbUser?.firstName || user.email.split('@')[0],
         lastName: dbUser?.lastName || "User",
-        role: user.role
+        role,
+        permissions,
+        currentOrganizationId,
+        organizations: userOrganizations.map((membership) => ({
+          ...membership,
+          permissions: getPermissionsForRole(membership.role),
+        })),
       });
     } catch (error) {
       console.error("Auth verification error:", error);
@@ -3611,18 +3634,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Organization management routes
-  app.get('/api/organizations', orgRoutes.getOrganizations);
-  app.post('/api/organizations', orgRoutes.createOrganization);
-  app.get('/api/organizations/:id', orgRoutes.getOrganization);
-  app.put('/api/organizations/:id', orgRoutes.updateOrganization);
-  app.get('/api/organizations/:id/members', orgRoutes.getOrganizationMembers);
-  app.get('/api/organizations/:id/calls', orgRoutes.getOrganizationCalls);
-  app.get('/api/organizations/:id/stats', orgRoutes.getOrganizationStats);
-  app.get('/api/organizations/:id/recent-calls', orgRoutes.getRecentCalls);
-  app.post('/api/organizations/:id/invite', orgRoutes.inviteUserToOrganization);
-  app.get('/api/admin/users', orgRoutes.getAllUsers);
-  app.post('/api/admin/users', orgRoutes.createUser);
-  app.patch('/api/admin/users/:id/password', orgRoutes.updateUserPassword);
+  app.get('/api/organizations', requireAuth, requirePermission('organizations', 'read'), orgRoutes.getOrganizations);
+  app.post('/api/organizations', requireAuth, requirePermission('organizations', 'create'), orgRoutes.createOrganization);
+  app.get('/api/organizations/:id', requireAuth, requirePermission('organizations', 'read'), orgRoutes.getOrganization);
+  app.put('/api/organizations/:id', requireAuth, requirePermission('organizations', 'update'), orgRoutes.updateOrganization);
+  app.get('/api/organizations/:id/members', requireAuth, requirePermission('users', 'read'), orgRoutes.getOrganizationMembers);
+  app.get('/api/organizations/:id/calls', requireAuth, requirePermission('calls', 'read'), orgRoutes.getOrganizationCalls);
+  app.get('/api/organizations/:id/stats', requireAuth, requirePermission('reports', 'read'), orgRoutes.getOrganizationStats);
+  app.get('/api/organizations/:id/recent-calls', requireAuth, requirePermission('calls', 'read'), orgRoutes.getRecentCalls);
+  app.post('/api/organizations/:id/invite', requireAuth, requirePermission('users', 'create'), orgRoutes.inviteUserToOrganization);
+  app.get('/api/admin/users', requireAuth, requirePermission('users', 'read'), orgRoutes.getAllUsers);
+  app.post('/api/admin/users', requireAuth, requirePermission('users', 'create'), orgRoutes.createUser);
+  app.patch('/api/admin/users/:id/password', requireAuth, requirePermission('users', 'update'), orgRoutes.updateUserPassword);
 
   // SMS API endpoints
   // Get SMS messages
@@ -4906,6 +4929,204 @@ Respond in JSON format:
     } catch (error) {
       console.error('Error deleting todo:', error);
       res.status(500).json({ message: 'Failed to delete todo' });
+    }
+  });
+
+  // Project Intelligence routes. These organize existing todos into project goals,
+  // workstreams/departments, stages, dependencies, KPI tracking, and AI insights.
+  const getDefaultProjectContext = () => ({
+    userId: 1,
+    organizationId: "00000000-0000-0000-0000-000000000001"
+  });
+
+  const parseOptionalDate = (value: unknown) => {
+    if (!value || typeof value !== "string") return value;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  app.get('/api/project-intelligence', async (req, res) => {
+    try {
+      const { userId, organizationId } = getDefaultProjectContext();
+      const goals = await storage.getProjectGoals(userId, organizationId);
+      const openBottlenecks = goals.reduce((count, goal) => count + goal.bottlenecks.length, 0);
+      const totalTasks = goals.reduce((count, goal) => count + goal.totalTasks, 0);
+      const completedTasks = goals.reduce((count, goal) => count + goal.completedTasks, 0);
+
+      res.json({
+        goals,
+        summary: {
+          totalGoals: goals.length,
+          activeGoals: goals.filter((goal) => goal.status !== "complete").length,
+          totalTasks,
+          completedTasks,
+          completionPercent: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+          openBottlenecks,
+          aiInsightCount: goals.reduce((count, goal) => count + goal.aiInsights.length, 0)
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching project intelligence:', error);
+      res.status(500).json({ message: 'Failed to fetch project intelligence' });
+    }
+  });
+
+  app.post('/api/project-goals', async (req, res) => {
+    try {
+      const { userId, organizationId } = getDefaultProjectContext();
+      const goal = await storage.createProjectGoal({
+        ...req.body,
+        targetDate: parseOptionalDate(req.body.targetDate),
+        userId,
+        organizationId
+      });
+      res.json(goal);
+    } catch (error) {
+      console.error('Error creating project goal:', error);
+      res.status(500).json({ message: 'Failed to create project goal' });
+    }
+  });
+
+  app.put('/api/project-goals/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const goal = await storage.updateProjectGoal(id, {
+        ...req.body,
+        targetDate: parseOptionalDate(req.body.targetDate)
+      });
+      res.json(goal);
+    } catch (error) {
+      console.error('Error updating project goal:', error);
+      res.status(500).json({ message: 'Failed to update project goal' });
+    }
+  });
+
+  app.post('/api/project-workstreams', async (req, res) => {
+    try {
+      const { userId, organizationId } = getDefaultProjectContext();
+      const workstream = await storage.createProjectWorkstream({
+        ...req.body,
+        userId,
+        organizationId
+      });
+      res.json(workstream);
+    } catch (error) {
+      console.error('Error creating project workstream:', error);
+      res.status(500).json({ message: 'Failed to create project workstream' });
+    }
+  });
+
+  app.put('/api/project-workstreams/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const workstream = await storage.updateProjectWorkstream(id, req.body);
+      res.json(workstream);
+    } catch (error) {
+      console.error('Error updating project workstream:', error);
+      res.status(500).json({ message: 'Failed to update project workstream' });
+    }
+  });
+
+  app.post('/api/project-stages', async (req, res) => {
+    try {
+      const { userId, organizationId } = getDefaultProjectContext();
+      const stage = await storage.createProjectStage({
+        ...req.body,
+        startDate: parseOptionalDate(req.body.startDate),
+        dueDate: parseOptionalDate(req.body.dueDate),
+        userId,
+        organizationId
+      });
+      res.json(stage);
+    } catch (error) {
+      console.error('Error creating project stage:', error);
+      res.status(500).json({ message: 'Failed to create project stage' });
+    }
+  });
+
+  app.put('/api/project-stages/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const stage = await storage.updateProjectStage(id, {
+        ...req.body,
+        startDate: parseOptionalDate(req.body.startDate),
+        dueDate: parseOptionalDate(req.body.dueDate)
+      });
+      res.json(stage);
+    } catch (error) {
+      console.error('Error updating project stage:', error);
+      res.status(500).json({ message: 'Failed to update project stage' });
+    }
+  });
+
+  app.post('/api/project-task-links', async (req, res) => {
+    try {
+      const { userId, organizationId } = getDefaultProjectContext();
+      const link = await storage.createProjectTaskLink({
+        ...req.body,
+        userId,
+        organizationId
+      });
+      res.json(link);
+    } catch (error) {
+      console.error('Error linking todo to project:', error);
+      res.status(500).json({ message: 'Failed to link todo to project' });
+    }
+  });
+
+  app.post('/api/project-task-dependencies', async (req, res) => {
+    try {
+      const { userId, organizationId } = getDefaultProjectContext();
+      const dependency = await storage.createProjectTaskDependency({
+        ...req.body,
+        userId,
+        organizationId
+      });
+      res.json(dependency);
+    } catch (error) {
+      console.error('Error creating project dependency:', error);
+      res.status(500).json({ message: 'Failed to create project dependency' });
+    }
+  });
+
+  app.post('/api/project-kpis', async (req, res) => {
+    try {
+      const { userId, organizationId } = getDefaultProjectContext();
+      const kpi = await storage.createProjectKpi({
+        ...req.body,
+        userId,
+        organizationId
+      });
+      res.json(kpi);
+    } catch (error) {
+      console.error('Error creating project KPI:', error);
+      res.status(500).json({ message: 'Failed to create project KPI' });
+    }
+  });
+
+  app.put('/api/project-kpis/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const kpi = await storage.updateProjectKpi(id, req.body);
+      res.json(kpi);
+    } catch (error) {
+      console.error('Error updating project KPI:', error);
+      res.status(500).json({ message: 'Failed to update project KPI' });
+    }
+  });
+
+  app.post('/api/project-ai-insights', async (req, res) => {
+    try {
+      const { userId, organizationId } = getDefaultProjectContext();
+      const insight = await storage.createProjectAiInsight({
+        ...req.body,
+        userId,
+        organizationId
+      });
+      res.json(insight);
+    } catch (error) {
+      console.error('Error creating project AI insight:', error);
+      res.status(500).json({ message: 'Failed to create project AI insight' });
     }
   });
 

@@ -68,6 +68,8 @@ import SupportChatbot from "@/components/SupportChatbot";
 import AICommandEngineer from "@/pages/ai-command-engineer";
 import TodoPage from "@/pages/todo";
 import AIAssistant from "@/pages/ai-assistant";
+import ProjectIntelligencePage from "@/pages/project-intelligence";
+import { hasPermission, type PermissionAction, type PermissionModule } from "@shared/permissions";
 
 function LoadingSpinner() {
   return (
@@ -80,7 +82,24 @@ function LoadingSpinner() {
   );
 }
 
-function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
+function AccessDenied() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="max-w-md rounded-lg border bg-white p-6 text-center shadow-sm">
+        <h1 className="text-xl font-semibold text-gray-900">Access restricted</h1>
+        <p className="mt-2 text-sm text-gray-600">Your role does not include permission to view this area.</p>
+      </div>
+    </div>
+  );
+}
+
+function ProtectedRoute({
+  component: Component,
+  permission,
+}: {
+  component: React.ComponentType;
+  permission?: { module: PermissionModule; action?: PermissionAction };
+}) {
   const { isAuthenticated, isLoading, user } = useAuth();
 
   if (isLoading) {
@@ -89,6 +108,10 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
 
   if (!isAuthenticated || !user) {
     return <Redirect to="/login" />;
+  }
+
+  if (permission && !hasPermission(user.permissions, permission.module, permission.action || "read")) {
+    return <AccessDenied />;
   }
 
   return <Component />;
@@ -106,45 +129,46 @@ function Router() {
       <Route path="/dashboard" component={() => <ProtectedRoute component={ModernDashboard} />} />
       <Route path="/dashboard-new" component={() => <ProtectedRoute component={ModernDashboard} />} />
       <Route path="/calls" component={() => <ProtectedRoute component={ModernDashboard} />} />
-      <Route path="/call-log" component={() => <ProtectedRoute component={CallLog} />} />
+      <Route path="/call-log" component={() => <ProtectedRoute component={CallLog} permission={{ module: "calls" }} />} />
       <Route path="/contact/:id" component={() => <ProtectedRoute component={ContactProfile} />} />
       <Route path="/conversation/:callId" component={() => <ProtectedRoute component={ConversationLog} />} />
-      <Route path="/voicemail" component={() => <ProtectedRoute component={VoicemailPage} />} />
-      <Route path="/knowledge-base" component={() => <ProtectedRoute component={KnowledgeBase} />} />
-      <Route path="/contacts" component={() => <ProtectedRoute component={ContactsApp} />} />
-      <Route path="/duplicate-detection" component={() => <ProtectedRoute component={ContactsApp} />} />
-      <Route path="/mobile-sync" component={() => <ProtectedRoute component={ContactsApp} />} />
-      <Route path="/contact-settings" component={() => <ProtectedRoute component={ContactsApp} />} />
-      <Route path="/sms" component={() => <ProtectedRoute component={SMSPage} />} />
-      <Route path="/calendar" component={() => <ProtectedRoute component={CalendarPage} />} />
-      <Route path="/email" component={() => <ProtectedRoute component={EmailPage} />} />
-      <Route path="/todo" component={() => <ProtectedRoute component={TodoPage} />} />
-      <Route path="/sales-dashboard" component={() => <ProtectedRoute component={SalesDashboard} />} />
-      <Route path="/support-dashboard" component={() => <ProtectedRoute component={SupportDashboard} />} />
+      <Route path="/voicemail" component={() => <ProtectedRoute component={VoicemailPage} permission={{ module: "calls" }} />} />
+      <Route path="/knowledge-base" component={() => <ProtectedRoute component={KnowledgeBase} permission={{ module: "ai" }} />} />
+      <Route path="/contacts" component={() => <ProtectedRoute component={ContactsApp} permission={{ module: "contacts" }} />} />
+      <Route path="/duplicate-detection" component={() => <ProtectedRoute component={ContactsApp} permission={{ module: "contacts" }} />} />
+      <Route path="/mobile-sync" component={() => <ProtectedRoute component={ContactsApp} permission={{ module: "contacts" }} />} />
+      <Route path="/contact-settings" component={() => <ProtectedRoute component={ContactsApp} permission={{ module: "contacts" }} />} />
+      <Route path="/sms" component={() => <ProtectedRoute component={SMSPage} permission={{ module: "messages" }} />} />
+      <Route path="/calendar" component={() => <ProtectedRoute component={CalendarPage} permission={{ module: "calendar" }} />} />
+      <Route path="/email" component={() => <ProtectedRoute component={EmailPage} permission={{ module: "email" }} />} />
+      <Route path="/todo" component={() => <ProtectedRoute component={TodoPage} permission={{ module: "tasks" }} />} />
+      <Route path="/project-intelligence" component={() => <ProtectedRoute component={ProjectIntelligencePage} permission={{ module: "projects" }} />} />
+      <Route path="/sales-dashboard" component={() => <ProtectedRoute component={SalesDashboard} permission={{ module: "crm" }} />} />
+      <Route path="/support-dashboard" component={() => <ProtectedRoute component={SupportDashboard} permission={{ module: "support" }} />} />
       <Route path="/personal-assistant" component={() => <ProtectedRoute component={PersonalAssistantApp} />} />
-      <Route path="/crm-dashboard" component={() => <ProtectedRoute component={CRMApp} />} />
-      <Route path="/support-department" component={() => <ProtectedRoute component={SupportApp} />} />
-      <Route path="/analytics/calls" component={() => <ProtectedRoute component={CallAnalytics} />} />
-      <Route path="/analytics/ai" component={() => <ProtectedRoute component={AIAnalytics} />} />
-      <Route path="/analytics/routing" component={() => <ProtectedRoute component={RoutingAnalytics} />} />
-      <Route path="/settings/call-settings" component={() => <ProtectedRoute component={CallSettings} />} />
-      <Route path="/settings/ai-config" component={() => <ProtectedRoute component={CallManagement} />} />
+      <Route path="/crm-dashboard" component={() => <ProtectedRoute component={CRMApp} permission={{ module: "crm" }} />} />
+      <Route path="/support-department" component={() => <ProtectedRoute component={SupportApp} permission={{ module: "support" }} />} />
+      <Route path="/analytics/calls" component={() => <ProtectedRoute component={CallAnalytics} permission={{ module: "reports" }} />} />
+      <Route path="/analytics/ai" component={() => <ProtectedRoute component={AIAnalytics} permission={{ module: "reports" }} />} />
+      <Route path="/analytics/routing" component={() => <ProtectedRoute component={RoutingAnalytics} permission={{ module: "reports" }} />} />
+      <Route path="/settings/call-settings" component={() => <ProtectedRoute component={CallSettings} permission={{ module: "calls", action: "update" }} />} />
+      <Route path="/settings/ai-config" component={() => <ProtectedRoute component={CallManagement} permission={{ module: "ai", action: "update" }} />} />
       <Route path="/settings/call-management">
         {() => {
           window.location.href = '/ai-management';
           return null;
         }}
       </Route>
-      <Route path="/settings/call-flow" component={() => <ProtectedRoute component={CallManagement} />} />
-      <Route path="/ai-receptionist" component={() => <ProtectedRoute component={CallManagement} />} />
+      <Route path="/settings/call-flow" component={() => <ProtectedRoute component={CallManagement} permission={{ module: "calls", action: "update" }} />} />
+      <Route path="/ai-receptionist" component={() => <ProtectedRoute component={CallManagement} permission={{ module: "ai", action: "update" }} />} />
       <Route path="/sitemap" component={() => <ProtectedRoute component={SitemapPage} />} />
-      <Route path="/ai-management" component={() => <ProtectedRoute component={AIManagement} />} />
-      <Route path="/onboarding" component={() => <ProtectedRoute component={OnboardingPage} />} />
-      <Route path="/quick-setup" component={() => <ProtectedRoute component={QuickSetupPage} />} />
-      <Route path="/live-calls" component={() => <ProtectedRoute component={LiveCallsPage} />} />
-      <Route path="/conversation-analytics" component={() => <ProtectedRoute component={ConversationAnalyticsPage} />} />
-      <Route path="/call-routing" component={() => <ProtectedRoute component={CallRoutingPage} />} />
-      <Route path="/intent-recognition" component={() => <ProtectedRoute component={IntentRecognitionPage} />} />
+      <Route path="/ai-management" component={() => <ProtectedRoute component={AIManagement} permission={{ module: "ai", action: "update" }} />} />
+      <Route path="/onboarding" component={() => <ProtectedRoute component={OnboardingPage} permission={{ module: "settings", action: "update" }} />} />
+      <Route path="/quick-setup" component={() => <ProtectedRoute component={QuickSetupPage} permission={{ module: "settings", action: "update" }} />} />
+      <Route path="/live-calls" component={() => <ProtectedRoute component={LiveCallsPage} permission={{ module: "calls" }} />} />
+      <Route path="/conversation-analytics" component={() => <ProtectedRoute component={ConversationAnalyticsPage} permission={{ module: "reports" }} />} />
+      <Route path="/call-routing" component={() => <ProtectedRoute component={CallRoutingPage} permission={{ module: "calls", action: "update" }} />} />
+      <Route path="/intent-recognition" component={() => <ProtectedRoute component={IntentRecognitionPage} permission={{ module: "ai", action: "update" }} />} />
       
       {/* Additional page routes */}
       <Route path="/alert-rules" component={() => <ProtectedRoute component={AlertRulesPage} />} />
@@ -153,37 +177,37 @@ function Router() {
       <Route path="/ai-engineer" component={() => <ProtectedRoute component={AIEngineerPage} />} />
       <Route path="/ai-command-engineer" component={() => <ProtectedRoute component={AICommandEngineer} />} />
       <Route path="/engineering-team" component={() => <ProtectedRoute component={EngineeringTeamPage} />} />
-      <Route path="/team-directory" component={() => <ProtectedRoute component={ContactsPage} />} />
-      <Route path="/call-analytics" component={() => <ProtectedRoute component={CallAnalytics} />} />
-      <Route path="/ai-performance" component={() => <ProtectedRoute component={AIAnalytics} />} />
-      <Route path="/business-intelligence" component={() => <ProtectedRoute component={CallAnalytics} />} />
-      <Route path="/integration-settings" component={() => <ProtectedRoute component={IntegrationsPage} />} />
-      <Route path="/security-settings" component={() => <ProtectedRoute component={SystemSettingsPage} />} />
+      <Route path="/team-directory" component={() => <ProtectedRoute component={ContactsPage} permission={{ module: "users" }} />} />
+      <Route path="/call-analytics" component={() => <ProtectedRoute component={CallAnalytics} permission={{ module: "reports" }} />} />
+      <Route path="/ai-performance" component={() => <ProtectedRoute component={AIAnalytics} permission={{ module: "reports" }} />} />
+      <Route path="/business-intelligence" component={() => <ProtectedRoute component={CallAnalytics} permission={{ module: "reports" }} />} />
+      <Route path="/integration-settings" component={() => <ProtectedRoute component={IntegrationsPage} permission={{ module: "integrations" }} />} />
+      <Route path="/security-settings" component={() => <ProtectedRoute component={SystemSettingsPage} permission={{ module: "settings", action: "update" }} />} />
       <Route path="/user-guide" component={() => <ProtectedRoute component={SitemapPage} />} />
       <Route path="/api-docs" component={() => <ProtectedRoute component={SitemapPage} />} />
       
       <Route path="/ai-agents" component={() => <ProtectedRoute component={AIAgents} />} />
       
       {/* Portal Routes */}
-      <Route path="/admin" component={() => <ProtectedRoute component={AdminPortal} />} />
-      <Route path="/organization" component={() => <ProtectedRoute component={OrganizationPortal} />} />
+      <Route path="/admin" component={() => <ProtectedRoute component={AdminPortal} permission={{ module: "users", action: "manage" }} />} />
+      <Route path="/organization" component={() => <ProtectedRoute component={OrganizationPortal} permission={{ module: "users" }} />} />
       <Route path="/user-dashboard" component={() => <ProtectedRoute component={UserDashboard} />} />
       <Route path="/agent-training" component={() => <ProtectedRoute component={AgentTraining} />} />
       <Route path="/agent-demo" component={() => <ProtectedRoute component={AgentDemo} />} />
-      <Route path="/integrations" component={() => <ProtectedRoute component={IntegrationsPage} />} />
-      <Route path="/system-settings" component={() => <ProtectedRoute component={SystemSettingsPage} />} />
+      <Route path="/integrations" component={() => <ProtectedRoute component={IntegrationsPage} permission={{ module: "integrations" }} />} />
+      <Route path="/system-settings" component={() => <ProtectedRoute component={SystemSettingsPage} permission={{ module: "settings" }} />} />
       <Route path="/timezone-settings" component={() => <ProtectedRoute component={TimezoneSettings} />} />
-      <Route path="/notifications" component={() => <ProtectedRoute component={NotificationsPage} />} />
+      <Route path="/notifications" component={() => <ProtectedRoute component={NotificationsPage} permission={{ module: "settings" }} />} />
       <Route path="/profile" component={() => <ProtectedRoute component={ProfilePage} />} />
       <Route path="/testing" component={() => <ProtectedRoute component={Dashboard} />} />
       <Route path="/support" component={() => <ProtectedRoute component={Dashboard} />} />
-      <Route path="/mobile-sync" component={() => <ProtectedRoute component={MobileSync} />} />
-      <Route path="/contact-duplicates" component={() => <ProtectedRoute component={ContactDuplicates} />} />
+      <Route path="/mobile-sync" component={() => <ProtectedRoute component={MobileSync} permission={{ module: "contacts" }} />} />
+      <Route path="/contact-duplicates" component={() => <ProtectedRoute component={ContactDuplicates} permission={{ module: "contacts" }} />} />
       <Route path="/onboarding" component={() => <ProtectedRoute component={OnboardingPage} />} />
       <Route path="/call-forwarding-setup" component={() => <ProtectedRoute component={CallForwardingSetupPage} />} />
       <Route path="/ai-assistant-config" component={() => <ProtectedRoute component={AIAssistantConfigPage} />} />
-      <Route path="/webhook-management" component={() => <ProtectedRoute component={WebhookManagement} />} />
-      <Route path="/support-automation" component={() => <ProtectedRoute component={SupportAutomation} />} />
+      <Route path="/webhook-management" component={() => <ProtectedRoute component={WebhookManagement} permission={{ module: "integrations" }} />} />
+      <Route path="/support-automation" component={() => <ProtectedRoute component={SupportAutomation} permission={{ module: "support", action: "update" }} />} />
       
       <Route component={NotFound} />
     </Switch>

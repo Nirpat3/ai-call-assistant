@@ -9,19 +9,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Users, Settings, Plus, Phone, UserPlus, Search, MoreVertical, Crown, Eye, User } from 'lucide-react';
+import { Users, Settings, Plus, Phone, UserPlus, Search, MoreVertical, Crown, Eye, User, Copy, KeyRound, UserCheck } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { UserWithOrganizations, UserRole, Organization } from '@shared/schema';
+import { hasPermission } from '@shared/permissions';
+import type { PermissionMap } from '@shared/permissions';
 
 const inviteUserSchema = z.object({
   email: z.string().email('Valid email is required'),
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
-  role: z.enum(['admin', 'member', 'viewer']),
+  role: z.enum(['admin', 'manager', 'member', 'viewer']),
 });
 
 const organizationSettingsSchema = z.object({
@@ -29,7 +31,7 @@ const organizationSettingsSchema = z.object({
   domain: z.string().optional(),
   settings: z.object({
     allowExternalInvites: z.boolean(),
-    defaultUserRole: z.enum(['admin', 'member', 'viewer']),
+    defaultUserRole: z.enum(['admin', 'manager', 'member', 'viewer']),
     maxUsers: z.number().min(1).optional(),
   }),
 });
@@ -37,32 +39,62 @@ const organizationSettingsSchema = z.object({
 type InviteUserForm = z.infer<typeof inviteUserSchema>;
 type OrganizationSettingsForm = z.infer<typeof organizationSettingsSchema>;
 
+type AuthOrganizationMembership = {
+  organizationId: string;
+  role: string;
+  permissions?: PermissionMap;
+  organization?: Organization;
+};
+
+type AuthUser = {
+  id: number;
+  email: string;
+  username: string;
+  role: string;
+  currentOrganizationId?: string;
+  permissions?: PermissionMap;
+  organizations?: AuthOrganizationMembership[];
+};
+
+type OrganizationWithSettings = Organization & {
+  settings?: {
+    allowExternalInvites?: boolean;
+    defaultUserRole?: 'admin' | 'manager' | 'member' | 'viewer';
+    maxUsers?: number;
+  };
+};
+
 export default function OrganizationPortal() {
   const { toast } = useToast();
   const [showInviteUser, setShowInviteUser] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [invitationResult, setInvitationResult] = useState<{
+    email: string;
+    temporaryPassword?: string;
+    message?: string;
+  } | null>(null);
 
   // Get current organization
-  const { data: currentUser } = useQuery({
+  const { data: currentUser } = useQuery<AuthUser>({
     queryKey: ['/api/auth/me'],
   });
 
   const currentOrgId = currentUser?.currentOrganizationId;
 
   // Fetch organization details
-  const { data: organization, isLoading: orgLoading } = useQuery({
+  const { data: organization, isLoading: orgLoading } = useQuery<OrganizationWithSettings>({
     queryKey: ['/api/organizations', currentOrgId],
     enabled: !!currentOrgId,
   });
 
   // Fetch organization members
-  const { data: members = [], isLoading: membersLoading } = useQuery({
+  const { data: members = [], isLoading: membersLoading } = useQuery<UserWithOrganizations[]>({
     queryKey: ['/api/organizations', currentOrgId, 'members'],
     enabled: !!currentOrgId,
   });
 
   // Fetch organization calls
-  const { data: calls = [], isLoading: callsLoading } = useQuery({
+  const { data: calls = [], isLoading: callsLoading } = useQuery<any[]>({
     queryKey: ['/api/organizations', currentOrgId, 'calls'],
     enabled: !!currentOrgId,
   });
@@ -75,10 +107,14 @@ export default function OrganizationPortal() {
         body: JSON.stringify(data),
       });
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['/api/organizations', currentOrgId, 'members'] });
-      setShowInviteUser(false);
-      toast({ title: 'Invitation sent successfully' });
+      inviteForm.reset();
+      setInvitationResult(result);
+      toast({
+        title: result.temporaryPassword ? 'User account created' : 'Organization access updated',
+        description: result.message,
+      });
     },
     onError: (error) => {
       toast({ title: 'Failed to send invitation', description: error.message, variant: 'destructive' });
@@ -135,6 +171,7 @@ export default function OrganizationPortal() {
   const getRoleIcon = (role: UserRole) => {
     switch (role) {
       case 'admin': return Crown;
+      case 'manager': return UserCheck;
       case 'member': return User;
       case 'viewer': return Eye;
       default: return User;
@@ -144,17 +181,29 @@ export default function OrganizationPortal() {
   const getRoleBadgeColor = (role: UserRole) => {
     switch (role) {
       case 'admin': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300';
+      case 'manager': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300';
       case 'member': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300';
       case 'viewer': return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
       default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
     }
   };
 
-  const currentUserRole = currentUser?.organizations?.find(
+  const currentMembership = currentUser?.organizations?.find(
     (uo: any) => uo.organizationId === currentOrgId
-  )?.role;
+  );
 
-  const canManageUsers = currentUserRole === 'admin';
+  const canManageUsers = hasPermission(currentMembership?.permissions || currentUser?.permissions, 'users', 'create');
+
+  const copyTemporaryPassword = async () => {
+    if (!invitationResult?.temporaryPassword) return;
+
+    try {
+      await navigator.clipboard.writeText(invitationResult.temporaryPassword);
+      toast({ title: 'Password copied' });
+    } catch {
+      toast({ title: 'Copy failed', description: 'Select the password and copy it manually.', variant: 'destructive' });
+    }
+  };
 
   if (!currentOrgId || orgLoading) {
     return (
@@ -179,7 +228,12 @@ export default function OrganizationPortal() {
           </p>
         </div>
         {canManageUsers && (
-          <Dialog open={showInviteUser} onOpenChange={setShowInviteUser}>
+          <Dialog open={showInviteUser} onOpenChange={(open) => {
+            setShowInviteUser(open);
+            if (!open) {
+              setInvitationResult(null);
+            }
+          }}>
             <DialogTrigger asChild>
               <Button>
                 <UserPlus className="w-4 h-4 mr-2" />
@@ -192,6 +246,22 @@ export default function OrganizationPortal() {
               </DialogHeader>
               <Form {...inviteForm}>
                 <form onSubmit={inviteForm.handleSubmit((data) => inviteUserMutation.mutate(data))} className="space-y-4">
+                  {invitationResult?.temporaryPassword && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                      <div className="flex items-center gap-2 font-medium">
+                        <KeyRound className="w-4 h-4" />
+                        Temporary password for {invitationResult.email}
+                      </div>
+                      <div className="mt-3 flex gap-2">
+                        <Input value={invitationResult.temporaryPassword} readOnly />
+                        <Button type="button" variant="outline" onClick={copyTemporaryPassword}>
+                          <Copy className="w-4 h-4 mr-2" />
+                          Copy
+                        </Button>
+                      </div>
+                      <p className="mt-2 text-xs">Share this password through your approved channel. The user can sign in with their email and this password.</p>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-4">
                     <FormField
                       control={inviteForm.control}
@@ -247,6 +317,7 @@ export default function OrganizationPortal() {
                           </FormControl>
                           <SelectContent>
                             <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem value="manager">Manager</SelectItem>
                             <SelectItem value="member">Member</SelectItem>
                             <SelectItem value="viewer">Viewer</SelectItem>
                           </SelectContent>
@@ -382,9 +453,11 @@ export default function OrganizationPortal() {
                               @{member.username} • {member.email}
                             </p>
                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Joined: {new Date(member.organizations.find(
-                                uo => uo.organizationId === currentOrgId
-                              )?.joinedAt || member.createdAt).toLocaleDateString()}
+                              Joined: {new Date(
+                                member.organizations.find((uo) => uo.organizationId === currentOrgId)?.joinedAt
+                                  || member.createdAt
+                                  || Date.now()
+                              ).toLocaleDateString()}
                             </p>
                           </div>
                         </div>

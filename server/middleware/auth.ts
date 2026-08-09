@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import { getPermissionsForRole, hasPermission, type PermissionAction, type PermissionMap, type PermissionModule } from '@shared/permissions';
 
 export interface AuthenticatedUser {
   id: number;
@@ -7,6 +8,7 @@ export interface AuthenticatedUser {
   username: string;
   role: string;
   organizationId: string;
+  permissions?: PermissionMap;
 }
 
 declare global {
@@ -68,5 +70,26 @@ export function optionalAuth(req: Request, res: Response, next: NextFunction) {
 }
 
 export function signToken(payload: AuthenticatedUser): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
+  return jwt.sign({
+    ...payload,
+    permissions: payload.permissions || getPermissionsForRole(payload.role),
+  }, JWT_SECRET, { expiresIn: '24h' });
+}
+
+export function requirePermission(module: PermissionModule, action: PermissionAction = 'read') {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const user = req.user;
+
+    if (!user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    const permissions = user.permissions || getPermissionsForRole(user.role);
+
+    if (!hasPermission(permissions, module, action)) {
+      return res.status(403).json({ message: 'Insufficient permissions' });
+    }
+
+    next();
+  };
 }

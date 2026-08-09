@@ -1,7 +1,31 @@
 import { Request, Response } from 'express';
 import { storage } from './storage';
-import { insertOrganizationSchema, insertUserOrganizationSchema } from '@shared/schema';
+import { insertOrganizationSchema } from '@shared/schema';
 import { z } from 'zod';
+import { getPermissionsForRole } from '@shared/permissions';
+
+const inviteUserSchema = z.object({
+  email: z.string().email(),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  role: z.string().min(1),
+});
+
+function generateTemporaryPassword(): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  const symbols = '!@#$%';
+  let password = '';
+
+  for (let index = 0; index < 10; index += 1) {
+    password += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+
+  return `${password}${symbols[Math.floor(Math.random() * symbols.length)]}7`;
+}
+
+function usernameFromEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
 
 // Admin routes for organization management
 export async function getOrganizations(req: Request, res: Response) {
@@ -57,7 +81,13 @@ export async function getOrganizationMembers(req: Request, res: Response) {
   try {
     const { id } = req.params;
     const members = await storage.getOrganizationMembers(id);
-    res.json(members);
+    res.json(members.map((member) => ({
+      ...member,
+      organizations: member.organizations.map((membership) => ({
+        ...membership,
+        permissions: getPermissionsForRole(membership.role),
+      })),
+    })));
   } catch (error) {
     console.error('Error fetching organization members:', error);
     res.status(500).json({ message: 'Failed to fetch organization members' });
@@ -127,21 +157,61 @@ export async function getRecentCalls(req: Request, res: Response) {
 export async function inviteUserToOrganization(req: Request, res: Response) {
   try {
     const { id } = req.params;
-    const { email, firstName, lastName, role } = req.body;
+    const { email, firstName, lastName, role } = inviteUserSchema.parse(req.body);
+    const normalizedEmail = email.trim().toLowerCase();
+    const organization = await storage.getOrganization(id);
 
-    // For now, we'll just create a placeholder invitation response
-    // In a real system, you'd send an email invitation
-    const invitation = {
+    if (!organization) {
+      return res.status(404).json({ message: 'Organization not found' });
+    }
+
+    let user = await storage.getUserByEmail(normalizedEmail);
+    let temporaryPassword: string | undefined;
+    let isNewUser = false;
+
+    if (!user) {
+      temporaryPassword = generateTemporaryPassword();
+      user = await storage.createUser({
+        username: usernameFromEmail(normalizedEmail),
+        email: normalizedEmail,
+        firstName,
+        lastName,
+        password: temporaryPassword,
+        currentOrganizationId: id,
+      });
+      isNewUser = true;
+    }
+
+    const memberships = await storage.getUserOrganizations(user.id);
+    const existingMembership = memberships.find((membership) => membership.organizationId === id);
+
+    if (!existingMembership) {
+      await storage.addUserToOrganization({
+        userId: user.id,
+        organizationId: id,
+        role,
+      });
+    }
+
+    if (!user.currentOrganizationId) {
+      user = await storage.updateUserCurrentOrganization(user.id, id) || user;
+    }
+
+    res.status(isNewUser ? 201 : 200).json({
       organizationId: id,
-      email,
-      firstName,
-      lastName,
-      role,
-      status: 'sent',
+      email: normalizedEmail,
+      firstName: user.firstName || firstName,
+      lastName: user.lastName || lastName,
+      role: existingMembership?.role || role,
+      permissions: getPermissionsForRole(existingMembership?.role || role),
+      status: isNewUser ? 'created' : 'member_added',
       invitedAt: new Date(),
-    };
-
-    res.status(201).json(invitation);
+      userId: user.id,
+      temporaryPassword,
+      message: isNewUser
+        ? 'User account created. Share the temporary password with the user.'
+        : 'Existing user has access to this organization.'
+    });
   } catch (error) {
     console.error('Error sending invitation:', error);
     res.status(500).json({ message: 'Failed to send invitation' });
@@ -151,9 +221,32 @@ export async function inviteUserToOrganization(req: Request, res: Response) {
 // Admin user management
 export async function getAllUsers(req: Request, res: Response) {
   try {
-    // This would need to be implemented to get all users with their organizations
-    // For now, return empty array
-    res.json([]);
+    const organizations = await storage.getOrganizations();
+    const membersByUser = new Map<number, any>();
+
+    for (const organization of organizations) {
+      const members = await storage.getOrganizationMembers(organization.id);
+
+      for (const member of members) {
+        const existing = membersByUser.get(member.id);
+        const organizationsWithPermissions = member.organizations.map((membership) => ({
+          ...membership,
+          permissions: getPermissionsForRole(membership.role),
+        }));
+
+        if (existing) {
+          const knownOrgIds = new Set(existing.organizations.map((membership: any) => membership.organizationId));
+          existing.organizations.push(...organizationsWithPermissions.filter((membership) => !knownOrgIds.has(membership.organizationId)));
+        } else {
+          membersByUser.set(member.id, {
+            ...member,
+            organizations: organizationsWithPermissions,
+          });
+        }
+      }
+    }
+
+    res.json(Array.from(membersByUser.values()));
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ message: 'Failed to fetch users' });
@@ -182,6 +275,7 @@ export async function createUser(req: Request, res: Response) {
       firstName,
       lastName,
       password, // In a real app, this should be hashed
+      currentOrganizationId: organizationId,
     });
 
     // Add user to organization
@@ -191,7 +285,11 @@ export async function createUser(req: Request, res: Response) {
       role,
     });
 
-    res.status(201).json(user);
+    res.status(201).json({
+      ...user,
+      role,
+      permissions: getPermissionsForRole(role),
+    });
   } catch (error) {
     console.error('Error creating user:', error);
     res.status(500).json({ message: 'Failed to create user' });

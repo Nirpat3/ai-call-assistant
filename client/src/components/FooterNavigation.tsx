@@ -9,7 +9,8 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { useState } from 'react';
-import { activeApps } from '@/lib/app-registry';
+import { getVisibleApps } from '@/lib/app-registry';
+import { useAuth } from '@/hooks/useAuth';
 
 interface NavItem {
   label: string;
@@ -18,24 +19,20 @@ interface NavItem {
   badge?: number;
 }
 
-const primaryNavItems: NavItem[] = [
-  ...activeApps
+export function FooterNavigation() {
+  const [location, setLocation] = useLocation();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const { user } = useAuth();
+  const visibleApps = getVisibleApps(user?.permissions);
+  const primaryNavItems: NavItem[] = visibleApps
     .filter((app) => ["dashboard", "calls", "contacts", "messages", "calendar", "email", "todo", "crm"].includes(app.id))
-    .map((app) => ({ label: app.label, path: app.href, icon: app.icon, badge: app.badge ? Number(app.badge) : undefined })),
-];
-
-const fullMenuItems: NavItem[] = [
-  ...activeApps.map((app) => ({
+    .map((app) => ({ label: app.label, path: app.href, icon: app.icon, badge: app.badge ? Number(app.badge) : undefined }));
+  const fullMenuItems: NavItem[] = visibleApps.map((app) => ({
     label: app.label,
     path: app.href,
     icon: app.icon,
     badge: app.badge ? Number(app.badge) : undefined,
-  })),
-];
-
-export function FooterNavigation() {
-  const [location, setLocation] = useLocation();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  }));
 
   const isActive = (path: string) => {
     if (path === '/' && location === '/') return true;

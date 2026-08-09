@@ -12,7 +12,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { activeApps, bottomDockApps } from "@/lib/app-registry";
+import { getBottomDockApps, getVisibleApps } from "@/lib/app-registry";
+import { useAuth } from "@/hooks/useAuth";
 
 interface DashboardStats {
   callsToday?: number;
@@ -26,6 +27,9 @@ interface DashboardUser {
 }
 
 export default function MainDashboard() {
+  const { user: authUser } = useAuth();
+  const visibleApps = getVisibleApps(authUser?.permissions);
+  const visibleDockApps = getBottomDockApps(authUser?.permissions);
   const { data: dashboardStats } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
   });
@@ -132,7 +136,7 @@ export default function MainDashboard() {
 
         {/* App Grid - iPad Style */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-          {activeApps.map((app) => (
+          {visibleApps.map((app) => (
             <Link key={app.id} href={app.href}>
               <Card className="group cursor-pointer transition-all duration-200 hover:scale-105 hover:shadow-xl bg-white/80 backdrop-blur-sm border-white/20 dark:bg-gray-800/80 dark:border-gray-700/20 relative overflow-hidden">
                 <CardContent className="p-6 flex flex-col items-center text-center">
@@ -227,7 +231,7 @@ export default function MainDashboard() {
       {/* iPad-style Dock */}
       <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white/80 backdrop-blur-sm rounded-2xl px-4 py-3 shadow-2xl border border-white/20 dark:bg-gray-800/80 dark:border-gray-700/20">
         <div className="flex items-center gap-3">
-          {bottomDockApps.map((app) => (
+          {visibleDockApps.map((app) => (
             <Link key={app.id} href={app.href}>
               <div className={`w-12 h-12 ${app.color} rounded-xl flex items-center justify-center hover:scale-110 transition-transform cursor-pointer`}>
                 <app.icon className="h-6 w-6 text-white" />

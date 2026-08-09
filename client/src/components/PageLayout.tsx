@@ -7,7 +7,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { bottomDockApps } from "@/lib/app-registry";
+import { getBottomDockApps } from "@/lib/app-registry";
+import { useAuth } from "@/hooks/useAuth";
 
 interface PageLayoutProps {
   children: React.ReactNode;
@@ -25,6 +26,8 @@ export default function PageLayout({
   showBackButton = true
 }: PageLayoutProps) {
   const [location] = useLocation();
+  const { user } = useAuth();
+  const bottomDockApps = getBottomDockApps(user?.permissions);
 
   // Get current time for status bar
   const currentTime = new Date().toLocaleTimeString('en-US', { 

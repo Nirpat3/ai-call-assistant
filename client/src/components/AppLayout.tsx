@@ -20,7 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
-import { bottomDockApps } from "@/lib/app-registry";
+import { getBottomDockApps } from "@/lib/app-registry";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -47,7 +47,8 @@ export default function AppLayout({
 }: AppLayoutProps) {
   const [location] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
+  const bottomDockApps = getBottomDockApps(user?.permissions);
 
   // Get current time for status bar
   const currentTime = new Date().toLocaleTimeString('en-US', { 
